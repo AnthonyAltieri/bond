@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { PassThrough } from 'node:stream';
 
-import type { AgentHooks, AgentRunResult, ToolExecutionResult } from '@bond/agent-core';
+import type { AgentEvent, AgentRunResult, ToolExecutionResult } from '@bond/agent-core';
 
 import { runCli } from '../src/run-cli.ts';
 
@@ -47,33 +47,47 @@ describe('cli smoke', () => {
 
 function makeSmokeSession(prompts: string[]) {
   return {
-    async run(prompt: string, hooks?: AgentHooks): Promise<AgentRunResult> {
+    async *stream(prompt: string): AsyncGenerator<AgentEvent, AgentRunResult> {
       prompts.push(prompt);
 
       if (prompt === 'inspect') {
-        hooks?.onToolStart?.({
-          id: 'call_1',
-          inputText: '{"command":"pwd"}',
-          name: 'shell',
-        });
-        hooks?.onToolResult?.(
-          {
+        yield {
+          call: {
             id: 'call_1',
             inputText: '{"command":"pwd"}',
             name: 'shell',
           },
-          makeToolResult(),
-        );
+          kind: 'tool-call',
+        };
+        yield {
+          call: {
+            id: 'call_1',
+            inputText: '{"command":"pwd"}',
+            name: 'shell',
+          },
+          kind: 'tool-result',
+          result: makeToolResult(),
+        };
       }
 
-      hooks?.onTextDelta?.(`done:${prompt}`);
+      yield {
+        chunk: `done:${prompt}`,
+        kind: 'text-delta',
+      };
 
-      return {
+      const result = {
         finalText: `done:${prompt}`,
         messages: [],
         stepsUsed: 1,
         stopReason: 'completed',
       };
+
+      yield {
+        kind: 'end',
+        result,
+      };
+
+      return result;
     },
   };
 }

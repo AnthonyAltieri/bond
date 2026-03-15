@@ -4,10 +4,10 @@ import { resolve } from 'node:path';
 import {
   AgentSession,
   OpenAIChatClient,
-  createShellTool,
-  type AgentRunResult,
   type ToolCall,
-  type ToolExecutionResult,
+  createShellTool,
+  type AgentEvent,
+  type AgentRunResult,
 } from '@bond/agent-core';
 
 import { parseArgs } from './args.ts';
@@ -15,33 +15,8 @@ import { parseArgs } from './args.ts';
 type ReadableStream = NodeJS.ReadStream;
 type WritableStream = NodeJS.WriteStream;
 
-type AgentOutput =
-  | {
-      chunk: string;
-      kind: 'text-delta';
-    }
-  | {
-      call: ToolCall;
-      kind: 'tool-call';
-    }
-  | {
-      call: ToolCall;
-      kind: 'tool-result';
-      result: ToolExecutionResult;
-    }
-  | {
-      kind: 'end';
-      result: AgentRunResult;
-    };
-
-interface AgentResponseHooks {
-  onTextDelta?: (chunk: string) => void;
-  onToolResult?: (call: ToolCall, result: ToolExecutionResult) => void;
-  onToolStart?: (call: ToolCall) => void;
-}
-
 interface AgentSessionLike {
-  run(prompt: string, hooks?: AgentResponseHooks): Promise<AgentRunResult>;
+  stream(prompt: string): AsyncGenerator<AgentEvent, AgentRunResult>;
 }
 
 interface CliContext {
@@ -57,13 +32,6 @@ interface CliDependencies {
   stderr?: Pick<WritableStream, 'write'>;
   stdin?: ReadableStream;
   stdout?: Pick<WritableStream, 'write'>;
-}
-
-interface OutputQueue<T> {
-  close: () => void;
-  fail: (error: unknown) => void;
-  next: () => Promise<IteratorResult<T>>;
-  push: (value: T) => void;
 }
 
 interface PromptReader {
@@ -159,68 +127,6 @@ function createCliContext(dependencies: CliDependencies): CliContext {
   };
 }
 
-function createOutputQueue<T>(): OutputQueue<T> {
-  const bufferedValues: T[] = [];
-  const waitingConsumers: Array<{
-    reject: (error: unknown) => void;
-    resolve: (result: IteratorResult<T>) => void;
-  }> = [];
-  let ended = false;
-
-  return {
-    close() {
-      ended = true;
-      flushWaitingConsumers(waitingConsumers);
-    },
-    fail(error) {
-      ended = true;
-
-      while (waitingConsumers.length > 0) {
-        waitingConsumers.shift()?.reject(error);
-      }
-    },
-    async next() {
-      if (bufferedValues.length > 0) {
-        return {
-          done: false,
-          value: bufferedValues.shift() as T,
-        };
-      }
-
-      if (ended) {
-        return {
-          done: true,
-          value: undefined,
-        };
-      }
-
-      return await new Promise<IteratorResult<T>>((resolve, reject) => {
-        waitingConsumers.push({
-          reject,
-          resolve,
-        });
-      });
-    },
-    push(value) {
-      if (ended) {
-        return;
-      }
-
-      const consumer = waitingConsumers.shift();
-
-      if (consumer) {
-        consumer.resolve({
-          done: false,
-          value,
-        });
-        return;
-      }
-
-      bufferedValues.push(value);
-    },
-  };
-}
-
 function createPromptReader(
   stdin: ReadableStream,
   stdout: Pick<WritableStream, 'write'>,
@@ -280,79 +186,13 @@ function createDefaultSession(options: SessionFactoryOptions): AgentSessionLike 
   });
 }
 
-function flushWaitingConsumers<T>(
-  waitingConsumers: Array<{
-    reject: (error: unknown) => void;
-    resolve: (result: IteratorResult<T>) => void;
-  }>,
-): void {
-  while (waitingConsumers.length > 0) {
-    waitingConsumers.shift()?.resolve({
-      done: true,
-      value: undefined,
-    });
-  }
-}
-
-async function* getAgentResponse(
-  session: AgentSessionLike,
-  prompt: string,
-): AsyncGenerator<AgentOutput> {
-  const queue = createOutputQueue<AgentOutput>();
-
-  void session
-    .run(prompt, {
-      onTextDelta(chunk) {
-        queue.push({
-          chunk,
-          kind: 'text-delta',
-        });
-      },
-      onToolResult(call, result) {
-        queue.push({
-          call,
-          kind: 'tool-result',
-          result,
-        });
-      },
-      onToolStart(call) {
-        queue.push({
-          call,
-          kind: 'tool-call',
-        });
-      },
-    })
-    .then(
-      (result) => {
-        queue.push({
-          kind: 'end',
-          result,
-        });
-        queue.close();
-      },
-      (error) => {
-        queue.fail(error);
-      },
-    );
-
-  while (true) {
-    const next = await queue.next();
-
-    if (next.done) {
-      return;
-    }
-
-    yield next.value;
-  }
-}
-
 async function getUserInput(promptReader: PromptReader): Promise<string | undefined> {
   return await promptReader.nextPrompt();
 }
 
 function handleAgentOutput(
   context: CliContext,
-  output: AgentOutput,
+  output: AgentEvent,
   assistantHasOutput: boolean,
 ): boolean {
   switch (output.kind) {
@@ -361,6 +201,10 @@ function handleAgentOutput(
       return assistantHasOutput || output.chunk.length > 0;
     case 'tool-call':
       return writeToolCall(context, output.call, assistantHasOutput);
+    case 'tool-stdout':
+      return assistantHasOutput;
+    case 'tool-stderr':
+      return assistantHasOutput;
     case 'tool-result':
       writeToolResult(context, output.result);
       return assistantHasOutput;
@@ -381,7 +225,7 @@ async function runAgentTurn(
 ): Promise<void> {
   let assistantHasOutput = false;
 
-  for await (const output of getAgentResponse(session, prompt)) {
+  for await (const output of session.stream(prompt)) {
     assistantHasOutput = handleAgentOutput(context, output, assistantHasOutput);
   }
 
@@ -399,7 +243,10 @@ function writeToolCall(context: CliContext, call: ToolCall, assistantHasOutput: 
   return false;
 }
 
-function writeToolResult(context: CliContext, result: ToolExecutionResult): void {
+function writeToolResult(
+  context: CliContext,
+  result: Extract<AgentEvent, { kind: 'tool-result' }>['result'],
+): void {
   context.stderr.write(`[tool:${result.name}] ${result.summary}\n`);
 }
 

@@ -1,5 +1,6 @@
 import { isAbsolute, relative, resolve } from 'node:path';
 
+import { createAsyncQueue } from '../async-queue.ts';
 import type { Tool, ToolExecutionContext, ToolExecutionResult } from '../types.ts';
 
 const DEFAULT_MAX_OUTPUT_CHARS = 8_000;
@@ -27,7 +28,7 @@ interface ShellSummary {
 export function createShellTool(options: ShellToolOptions = {}): Tool {
   const maxOutputChars = options.maxOutputChars ?? DEFAULT_MAX_OUTPUT_CHARS;
 
-  return {
+  const tool: Tool = {
     definition: {
       description:
         'Run a shell command in the workspace and capture stdout, stderr, and the exit code.',
@@ -50,9 +51,26 @@ export function createShellTool(options: ShellToolOptions = {}): Tool {
       name: 'shell',
     },
     async execute(inputText, context) {
+      const iterator = tool.stream(inputText, context);
+
+      while (true) {
+        const next = await iterator.next();
+
+        if (next.done) {
+          return next.value;
+        }
+      }
+    },
+    async *stream(inputText, context) {
       const input = parseShellInput(inputText);
       const targetCwd = resolveShellCwd(input.cwd, context);
       const timeoutMs = normalizeTimeout(input.timeoutMs, context.defaultTimeoutMs);
+      const outputQueue = createAsyncQueue<{
+        chunk: string;
+        kind: 'stderr-delta' | 'stdout-delta';
+      }>();
+      const stderrChunks: string[] = [];
+      const stdoutChunks: string[] = [];
 
       let timedOut = false;
       const child = Bun.spawn(['sh', '-lc', input.command], {
@@ -66,29 +84,49 @@ export function createShellTool(options: ShellToolOptions = {}): Tool {
         child.kill();
       }, timeoutMs);
 
-      const [exitCode, stdout, stderr] = await Promise.all([
+      const resultPromise = Promise.all([
         child.exited,
-        readStreamText(child.stdout),
-        readStreamText(child.stderr),
-      ]);
+        readProcessStream(child.stderr, 'stderr-delta', stderrChunks, outputQueue),
+        readProcessStream(child.stdout, 'stdout-delta', stdoutChunks, outputQueue),
+      ]).then(
+        ([exitCode]) => {
+          clearTimeout(timer);
+          outputQueue.close();
 
-      clearTimeout(timer);
+          const stdoutSummary = truncate(stdoutChunks.join(''), maxOutputChars);
+          const stderrSummary = truncate(stderrChunks.join(''), maxOutputChars);
+          const summary: ShellSummary = {
+            cwd: targetCwd,
+            exitCode,
+            stderr: stderrSummary.value,
+            stderrTruncated: stderrSummary.truncated,
+            stdout: stdoutSummary.value,
+            stdoutTruncated: stdoutSummary.truncated,
+            timedOut,
+          };
 
-      const stdoutSummary = truncate(stdout, maxOutputChars);
-      const stderrSummary = truncate(stderr, maxOutputChars);
-      const summary: ShellSummary = {
-        cwd: targetCwd,
-        exitCode,
-        stderr: stderrSummary.value,
-        stderrTruncated: stderrSummary.truncated,
-        stdout: stdoutSummary.value,
-        stdoutTruncated: stdoutSummary.truncated,
-        timedOut,
-      };
+          return formatShellResult(summary);
+        },
+        (error) => {
+          clearTimeout(timer);
+          outputQueue.fail(error);
+          throw error;
+        },
+      );
 
-      return formatShellResult(summary);
+      while (true) {
+        const next = await outputQueue.next();
+
+        if (next.done) {
+          return await resultPromise;
+        }
+
+        yield next.value;
+      }
     },
   };
+
+  return tool;
 }
 
 function formatShellResult(summary: ShellSummary): ToolExecutionResult {
@@ -173,12 +211,57 @@ function isInsideWorkspace(workspaceRoot: string, targetPath: string): boolean {
   );
 }
 
-async function readStreamText(stream: ReadableStream<Uint8Array> | null): Promise<string> {
+async function readProcessStream(
+  stream: ReadableStream<Uint8Array> | null,
+  kind: 'stderr-delta' | 'stdout-delta',
+  chunks: string[],
+  outputQueue: ReturnType<
+    typeof createAsyncQueue<{
+      chunk: string;
+      kind: 'stderr-delta' | 'stdout-delta';
+    }>
+  >,
+): Promise<void> {
   if (!stream) {
-    return '';
+    return;
   }
 
-  return await new Response(stream).text();
+  const decoder = new TextDecoder();
+  const reader = stream.getReader();
+
+  while (true) {
+    const { done, value } = await reader.read();
+
+    if (done) {
+      break;
+    }
+
+    const chunk = decoder.decode(value, {
+      stream: true,
+    });
+
+    if (!chunk) {
+      continue;
+    }
+
+    chunks.push(chunk);
+    outputQueue.push({
+      chunk,
+      kind,
+    });
+  }
+
+  const finalChunk = decoder.decode();
+
+  if (!finalChunk) {
+    return;
+  }
+
+  chunks.push(finalChunk);
+  outputQueue.push({
+    chunk: finalChunk,
+    kind,
+  });
 }
 
 function resolveShellCwd(cwd: string | undefined, context: ToolExecutionContext): string {

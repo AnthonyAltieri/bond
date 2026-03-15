@@ -55,19 +55,39 @@ export interface ToolExecutionResult {
   summary: string;
 }
 
+export type ToolEvent =
+  | {
+      chunk: string;
+      kind: 'stderr-delta';
+    }
+  | {
+      chunk: string;
+      kind: 'stdout-delta';
+    };
+
 export interface Tool {
   definition: ToolDefinition;
   execute(inputText: string, context: ToolExecutionContext): Promise<ToolExecutionResult>;
+  stream(
+    inputText: string,
+    context: ToolExecutionContext,
+  ): AsyncGenerator<ToolEvent, ToolExecutionResult>;
 }
 
 export interface ModelTurnParams {
   messages: Message[];
   model: string;
-  onTextDelta?: (chunk: string) => void;
   tools: ToolDefinition[];
 }
 
 export type ModelStopReason = 'length' | 'stop' | 'tool_calls';
+
+export interface ModelTextDeltaEvent {
+  chunk: string;
+  kind: 'text-delta';
+}
+
+export type ModelTurnEvent = ModelTextDeltaEvent;
 
 export interface ModelTurnResult {
   stopReason: ModelStopReason;
@@ -77,12 +97,7 @@ export interface ModelTurnResult {
 
 export interface ModelClient {
   runTurn(params: ModelTurnParams): Promise<ModelTurnResult>;
-}
-
-export interface AgentHooks {
-  onTextDelta?: (chunk: string) => void;
-  onToolResult?: (call: ToolCall, result: ToolExecutionResult) => void;
-  onToolStart?: (call: ToolCall) => void;
+  streamTurn(params: ModelTurnParams): AsyncGenerator<ModelTurnEvent, ModelTurnResult>;
 }
 
 export type AgentStopReason = 'completed' | 'max_steps';
@@ -93,3 +108,32 @@ export interface AgentRunResult {
   stepsUsed: number;
   stopReason: AgentStopReason;
 }
+
+export type AgentEvent =
+  | {
+      chunk: string;
+      kind: 'text-delta';
+    }
+  | {
+      call: ToolCall;
+      kind: 'tool-call';
+    }
+  | {
+      call: ToolCall;
+      chunk: string;
+      kind: 'tool-stderr';
+    }
+  | {
+      call: ToolCall;
+      chunk: string;
+      kind: 'tool-stdout';
+    }
+  | {
+      call: ToolCall;
+      kind: 'tool-result';
+      result: ToolExecutionResult;
+    }
+  | {
+      kind: 'end';
+      result: AgentRunResult;
+    };

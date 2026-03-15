@@ -5,6 +5,7 @@ import {
   createShellTool,
   type Message,
   type ModelClient,
+  type ModelTurnEvent,
   type ModelTurnParams,
   type ModelTurnResult,
 } from '@bond/agent-core';
@@ -60,6 +61,18 @@ class ScriptedModelClient implements ModelClient {
   ) {}
 
   async runTurn(params: ModelTurnParams): Promise<ModelTurnResult> {
+    const iterator = this.streamTurn(params);
+
+    while (true) {
+      const next = await iterator.next();
+
+      if (next.done) {
+        return next.value;
+      }
+    }
+  }
+
+  async *streamTurn(params: ModelTurnParams): AsyncGenerator<ModelTurnEvent, ModelTurnResult> {
     const step = this.steps[this.index];
     this.index += 1;
 
@@ -71,7 +84,12 @@ class ScriptedModelClient implements ModelClient {
           })
         : step;
 
-    params.onTextDelta?.(result.text);
+    if (result.text) {
+      yield {
+        chunk: result.text,
+        kind: 'text-delta',
+      };
+    }
 
     return result;
   }

@@ -1,6 +1,7 @@
 import type {
   Message,
   ModelClient,
+  ModelTurnEvent,
   ModelStopReason,
   ModelTurnParams,
   ModelTurnResult,
@@ -55,6 +56,18 @@ export class OpenAIChatClient implements ModelClient {
   }
 
   async runTurn(params: ModelTurnParams): Promise<ModelTurnResult> {
+    const iterator = this.streamTurn(params);
+
+    while (true) {
+      const next = await iterator.next();
+
+      if (next.done) {
+        return next.value;
+      }
+    }
+  }
+
+  async *streamTurn(params: ModelTurnParams): AsyncGenerator<ModelTurnEvent, ModelTurnResult> {
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
       body: JSON.stringify({
         messages: params.messages.map((message) => toOpenAIMessage(message)),
@@ -84,14 +97,13 @@ export class OpenAIChatClient implements ModelClient {
       throw new Error('OpenAI did not return a response body');
     }
 
-    return await collectStream(response.body, params.onTextDelta);
+    return yield* collectStream(response.body);
   }
 }
 
-async function collectStream(
+async function* collectStream(
   stream: ReadableStream<Uint8Array>,
-  onTextDelta?: (chunk: string) => void,
-): Promise<ModelTurnResult> {
+): AsyncGenerator<ModelTurnEvent, ModelTurnResult> {
   const partialToolCalls: PartialToolCall[] = [];
   const textParts: string[] = [];
   const reader = stream.getReader();
@@ -135,7 +147,10 @@ async function collectStream(
 
       if (content) {
         textParts.push(content);
-        onTextDelta?.(content);
+        yield {
+          chunk: content,
+          kind: 'text-delta',
+        };
       }
 
       for (const toolCall of choice.delta?.tool_calls ?? []) {

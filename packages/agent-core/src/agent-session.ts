@@ -1,11 +1,13 @@
 import type {
-  AgentHooks,
+  AgentEvent,
   AgentRunResult,
   AssistantMessage,
   Message,
   ModelClient,
+  ModelTurnResult,
   Tool,
   ToolCall,
+  ToolEvent,
   ToolExecutionResult,
 } from './types.ts';
 
@@ -59,7 +61,19 @@ export class AgentSession {
     this.toolMap = new Map(options.tools.map((tool) => [tool.definition.name, tool]));
   }
 
-  async run(prompt: string, hooks: AgentHooks = {}): Promise<AgentRunResult> {
+  async run(prompt: string): Promise<AgentRunResult> {
+    const iterator = this.stream(prompt);
+
+    while (true) {
+      const next = await iterator.next();
+
+      if (next.done) {
+        return next.value;
+      }
+    }
+  }
+
+  async *stream(prompt: string): AsyncGenerator<AgentEvent, AgentRunResult> {
     this.messages.push({
       content: prompt,
       role: 'user',
@@ -68,58 +82,110 @@ export class AgentSession {
     let finalText = '';
 
     for (let step = 0; step < this.maxSteps; step += 1) {
-      const modelResult = await this.client.runTurn({
-        messages: this.messages,
-        model: this.model,
-        onTextDelta: hooks.onTextDelta,
-        tools: [...this.toolMap.values()].map((tool) => tool.definition),
-      });
+      const modelResult = yield* this.streamModelTurn();
 
       finalText = modelResult.text;
       this.messages.push(toAssistantMessage(modelResult.text, modelResult.toolCalls));
 
       if (modelResult.toolCalls.length === 0) {
-        return {
+        const result = {
           finalText,
           messages: this.snapshotMessages(),
           stepsUsed: step + 1,
           stopReason: 'completed',
         };
+
+        yield {
+          kind: 'end',
+          result,
+        };
+
+        return result;
       }
 
       for (const toolCall of modelResult.toolCalls) {
-        hooks.onToolStart?.(toolCall);
-        const result = await runToolCall(toolCall, this.toolMap.get(toolCall.name), {
-          callId: toolCall.id,
-          cwd: this.cwd,
-          defaultTimeoutMs: this.commandTimeoutMs,
-          workspaceRoot: this.cwd,
-        });
+        yield {
+          call: toolCall,
+          kind: 'tool-call',
+        };
 
-        hooks.onToolResult?.(toolCall, result);
+        const result = yield* this.streamToolCall(toolCall);
         this.messages.push({
           content: result.content,
           name: toolCall.name,
           role: 'tool',
           toolCallId: toolCall.id,
         });
+
+        yield {
+          call: toolCall,
+          kind: 'tool-result',
+          result,
+        };
       }
     }
 
-    return {
+    const result = {
       finalText,
       messages: this.snapshotMessages(),
       stepsUsed: this.maxSteps,
       stopReason: 'max_steps',
     };
+
+    yield {
+      kind: 'end',
+      result,
+    };
+
+    return result;
   }
 
   snapshotMessages(): Message[] {
     return structuredClone(this.messages);
   }
+
+  private async *streamModelTurn(): AsyncGenerator<AgentEvent, ModelTurnResult> {
+    const iterator = this.client.streamTurn({
+      messages: this.messages,
+      model: this.model,
+      tools: [...this.toolMap.values()].map((tool) => tool.definition),
+    });
+
+    while (true) {
+      const next = await iterator.next();
+
+      if (next.done) {
+        return next.value;
+      }
+
+      yield {
+        chunk: next.value.chunk,
+        kind: 'text-delta',
+      };
+    }
+  }
+
+  private async *streamToolCall(call: ToolCall): AsyncGenerator<AgentEvent, ToolExecutionResult> {
+    const iterator = runToolCall(call, this.toolMap.get(call.name), {
+      callId: call.id,
+      cwd: this.cwd,
+      defaultTimeoutMs: this.commandTimeoutMs,
+      workspaceRoot: this.cwd,
+    });
+
+    while (true) {
+      const next = await iterator.next();
+
+      if (next.done) {
+        return next.value;
+      }
+
+      yield toAgentToolEvent(call, next.value);
+    }
+  }
 }
 
-async function runToolCall(
+async function* runToolCall(
   call: ToolCall,
   tool: Tool | undefined,
   context: {
@@ -128,7 +194,7 @@ async function runToolCall(
     defaultTimeoutMs: number;
     workspaceRoot: string;
   },
-): Promise<ToolExecutionResult> {
+): AsyncGenerator<ToolEvent, ToolExecutionResult> {
   if (!tool) {
     return {
       content: JSON.stringify(
@@ -144,7 +210,7 @@ async function runToolCall(
   }
 
   try {
-    return await tool.execute(call.inputText, context);
+    return yield* tool.stream(call.inputText, context);
   } catch (error) {
     return {
       content: JSON.stringify(
@@ -170,6 +236,20 @@ function toAssistantMessage(text: string, toolCalls: ToolCall[]): AssistantMessa
     : {
         content: text,
         role: 'assistant',
+      };
+}
+
+function toAgentToolEvent(call: ToolCall, event: ToolEvent): AgentEvent {
+  return event.kind === 'stdout-delta'
+    ? {
+        call,
+        chunk: event.chunk,
+        kind: 'tool-stdout',
+      }
+    : {
+        call,
+        chunk: event.chunk,
+        kind: 'tool-stderr',
       };
 }
 
