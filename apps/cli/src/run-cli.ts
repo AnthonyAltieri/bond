@@ -4,13 +4,14 @@ import { resolve } from 'node:path';
 import {
   AgentSession,
   OpenAIChatClient,
+  type ToolCall,
   createShellTool,
   type AgentEvent,
   type AgentRunResult,
 } from '@bond/agent-core';
 
+import { createCliConfig, type CliConfig } from './config.ts';
 import { parseArgs } from './args.ts';
-import { handleToolCall, handleToolResult } from './tools.ts';
 
 type ReadableStream = NodeJS.ReadStream;
 type WritableStream = NodeJS.WriteStream;
@@ -154,34 +155,34 @@ function createSession(
   args: ReturnType<typeof parseArgs>,
   dependencies: CliDependencies,
 ): AgentSessionLike {
+  const runtimeEnv = dependencies.env ?? process.env;
   const cwd = resolve(args.cwd ?? dependencies.cwd ?? process.cwd());
-  const env = dependencies.env ?? process.env;
 
-  return (dependencies.createSession ?? createDefaultSession)({
-    commandTimeoutMs: args.timeoutMs,
-    cwd,
-    env,
-    maxSteps: args.maxSteps,
-    model: args.model ?? env.OPENAI_MODEL,
-  });
-}
-
-function createDefaultSession(options: SessionFactoryOptions): AgentSessionLike {
-  if (!options.model) {
-    throw new Error('OPENAI_MODEL or --model is required');
+  if (dependencies.createSession) {
+    return dependencies.createSession({
+      commandTimeoutMs: args.timeoutMs,
+      cwd,
+      env: runtimeEnv,
+      maxSteps: args.maxSteps,
+      model: args.model,
+    });
   }
 
+  return createDefaultSession(createCliConfig(args, runtimeEnv, cwd));
+}
+
+function createDefaultSession(config: CliConfig): AgentSessionLike {
   const client = new OpenAIChatClient({
-    apiKey: options.env.OPENAI_API_KEY ?? '',
-    baseUrl: options.env.OPENAI_BASE_URL,
+    apiKey: config.apiKey,
+    baseUrl: config.baseUrl,
   });
 
   return new AgentSession({
     client,
-    commandTimeoutMs: options.commandTimeoutMs,
-    cwd: options.cwd,
-    maxSteps: options.maxSteps,
-    model: options.model,
+    commandTimeoutMs: config.commandTimeoutMs,
+    cwd: config.cwd,
+    maxSteps: config.maxSteps,
+    model: config.model,
     tools: [createShellTool()],
   });
 }
@@ -200,13 +201,13 @@ function handleAgentOutput(
       context.stdout.write(output.chunk);
       return assistantHasOutput || output.chunk.length > 0;
     case 'tool-call':
-      return handleToolCall(context, output.call, assistantHasOutput);
+      return writeToolCall(context, output.call, assistantHasOutput);
     case 'tool-stdout':
       return assistantHasOutput;
     case 'tool-stderr':
       return assistantHasOutput;
     case 'tool-result':
-      handleToolResult(context, output.result);
+      writeToolResult(context, output.result);
       return assistantHasOutput;
     case 'end':
       writeTurnEnd(context, output.result);
@@ -232,6 +233,22 @@ async function runAgentTurn(
   if (assistantHasOutput) {
     context.stdout.write('\n');
   }
+}
+
+function writeToolCall(context: CliContext, call: ToolCall, assistantHasOutput: boolean): boolean {
+  if (assistantHasOutput) {
+    context.stdout.write('\n');
+  }
+
+  context.stderr.write(`[tool:${call.name}] ${call.inputText}\n`);
+  return false;
+}
+
+function writeToolResult(
+  context: CliContext,
+  result: Extract<AgentEvent, { kind: 'tool-result' }>['result'],
+): void {
+  context.stderr.write(`[tool:${result.name}] ${result.summary}\n`);
 }
 
 function writeTurnEnd(context: CliContext, result: AgentRunResult): void {
