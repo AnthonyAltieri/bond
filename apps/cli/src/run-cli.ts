@@ -4,13 +4,13 @@ import { resolve } from 'node:path';
 import {
   AgentSession,
   OpenAIChatClient,
-  type ToolCall,
   createShellTool,
   type AgentEvent,
   type AgentRunResult,
 } from '@bond/agent-core';
 
 import { parseArgs } from './args.ts';
+import { handleToolCall, handleToolResult } from './tools.ts';
 
 type ReadableStream = NodeJS.ReadStream;
 type WritableStream = NodeJS.WriteStream;
@@ -200,13 +200,13 @@ function handleAgentOutput(
       context.stdout.write(output.chunk);
       return assistantHasOutput || output.chunk.length > 0;
     case 'tool-call':
-      return writeToolCall(context, output.call, assistantHasOutput);
+      return handleToolCall(context, output.call, assistantHasOutput);
     case 'tool-stdout':
       return assistantHasOutput;
     case 'tool-stderr':
       return assistantHasOutput;
     case 'tool-result':
-      writeToolResult(context, output.result);
+      handleToolResult(context, output.result);
       return assistantHasOutput;
     case 'end':
       writeTurnEnd(context, output.result);
@@ -232,22 +232,6 @@ async function runAgentTurn(
   if (assistantHasOutput) {
     context.stdout.write('\n');
   }
-}
-
-function writeToolCall(context: CliContext, call: ToolCall, assistantHasOutput: boolean): boolean {
-  if (assistantHasOutput) {
-    context.stdout.write('\n');
-  }
-
-  context.stderr.write(`[tool:${call.name}] ${call.inputText}\n`);
-  return false;
-}
-
-function writeToolResult(
-  context: CliContext,
-  result: Extract<AgentEvent, { kind: 'tool-result' }>['result'],
-): void {
-  context.stderr.write(`[tool:${result.name}] ${result.summary}\n`);
 }
 
 function writeTurnEnd(context: CliContext, result: AgentRunResult): void {
