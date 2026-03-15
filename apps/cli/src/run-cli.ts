@@ -5,22 +5,49 @@ import {
   AgentSession,
   OpenAIChatClient,
   createShellTool,
-  type AgentHooks,
   type AgentRunResult,
+  type ToolCall,
+  type ToolExecutionResult,
 } from '@bond/agent-core';
 
 import { parseArgs } from './args.ts';
 
-interface AgentSessionLike {
-  run(prompt: string, hooks?: AgentHooks): Promise<AgentRunResult>;
+type ReadableStream = NodeJS.ReadStream;
+type WritableStream = NodeJS.WriteStream;
+
+type AgentOutput =
+  | {
+      chunk: string;
+      kind: 'text-delta';
+    }
+  | {
+      call: ToolCall;
+      kind: 'tool-call';
+    }
+  | {
+      call: ToolCall;
+      kind: 'tool-result';
+      result: ToolExecutionResult;
+    }
+  | {
+      kind: 'end';
+      result: AgentRunResult;
+    };
+
+interface AgentResponseHooks {
+  onTextDelta?: (chunk: string) => void;
+  onToolResult?: (call: ToolCall, result: ToolExecutionResult) => void;
+  onToolStart?: (call: ToolCall) => void;
 }
 
-interface SessionFactoryOptions {
-  commandTimeoutMs?: number;
-  cwd: string;
-  env: Record<string, string | undefined>;
-  maxSteps?: number;
-  model?: string;
+interface AgentSessionLike {
+  run(prompt: string, hooks?: AgentResponseHooks): Promise<AgentRunResult>;
+}
+
+interface CliContext {
+  stderr: Pick<WritableStream, 'write'>;
+  stdin: ReadableStream;
+  stdout: Pick<WritableStream, 'write'>;
 }
 
 interface CliDependencies {
@@ -32,41 +59,72 @@ interface CliDependencies {
   stdout?: Pick<WritableStream, 'write'>;
 }
 
-type ReadableStream = NodeJS.ReadStream;
-type WritableStream = NodeJS.WriteStream;
+interface OutputQueue<T> {
+  close: () => void;
+  fail: (error: unknown) => void;
+  next: () => Promise<IteratorResult<T>>;
+  push: (value: T) => void;
+}
+
+interface PromptReader {
+  close: () => void;
+  nextPrompt: () => Promise<string | undefined>;
+}
+
+interface SessionFactoryOptions {
+  commandTimeoutMs?: number;
+  cwd: string;
+  env: Record<string, string | undefined>;
+  maxSteps?: number;
+  model?: string;
+}
 
 export async function runCli(argv: string[], dependencies: CliDependencies = {}): Promise<number> {
-  const stdout = dependencies.stdout ?? process.stdout;
-  const stderr = dependencies.stderr ?? process.stderr;
-
   try {
     const args = parseArgs(argv);
+    const context = createCliContext(dependencies);
 
     if (args.help) {
-      stdout.write(`${buildHelpText()}\n`);
+      context.stdout.write(`${buildHelpText()}\n`);
       return 0;
     }
 
-    const cwd = resolve(args.cwd ?? dependencies.cwd ?? process.cwd());
-    const env = dependencies.env ?? process.env;
-    const session = (dependencies.createSession ?? createDefaultSession)({
-      commandTimeoutMs: args.timeoutMs,
-      cwd,
-      env,
-      maxSteps: args.maxSteps,
-      model: args.model ?? env.OPENAI_MODEL,
-    });
+    const session = createSession(args, dependencies);
 
     if (args.prompt) {
-      await runPrompt(session, args.prompt, stdout, stderr);
+      await runAgentTurn(context, session, args.prompt);
       return 0;
     }
 
-    await runInteractiveSession(session, dependencies.stdin ?? process.stdin, stdout, stderr);
+    await agentLoop(context, session);
     return 0;
   } catch (error) {
+    const stderr = dependencies.stderr ?? process.stderr;
     stderr.write(`${toErrorMessage(error)}\n`);
     return 1;
+  }
+}
+
+async function agentLoop(context: CliContext, session: AgentSessionLike): Promise<void> {
+  const promptReader = createPromptReader(context.stdin, context.stdout);
+  context.stdout.write('Interactive mode. Type "exit" or "quit" to leave.\n');
+
+  try {
+    while (true) {
+      const prompt = await getUserInput(promptReader);
+
+      if (prompt === undefined || isExitPrompt(prompt)) {
+        break;
+      }
+
+      if (!prompt) {
+        continue;
+      }
+
+      await runAgentTurn(context, session, prompt);
+    }
+  } finally {
+    promptReader.close();
   }
 }
 
@@ -93,6 +151,115 @@ function buildHelpText(): string {
   ].join('\n');
 }
 
+function createCliContext(dependencies: CliDependencies): CliContext {
+  return {
+    stderr: dependencies.stderr ?? process.stderr,
+    stdin: dependencies.stdin ?? process.stdin,
+    stdout: dependencies.stdout ?? process.stdout,
+  };
+}
+
+function createOutputQueue<T>(): OutputQueue<T> {
+  const bufferedValues: T[] = [];
+  const waitingConsumers: Array<{
+    reject: (error: unknown) => void;
+    resolve: (result: IteratorResult<T>) => void;
+  }> = [];
+  let ended = false;
+
+  return {
+    close() {
+      ended = true;
+      flushWaitingConsumers(waitingConsumers);
+    },
+    fail(error) {
+      ended = true;
+
+      while (waitingConsumers.length > 0) {
+        waitingConsumers.shift()?.reject(error);
+      }
+    },
+    async next() {
+      if (bufferedValues.length > 0) {
+        return {
+          done: false,
+          value: bufferedValues.shift() as T,
+        };
+      }
+
+      if (ended) {
+        return {
+          done: true,
+          value: undefined,
+        };
+      }
+
+      return await new Promise<IteratorResult<T>>((resolve, reject) => {
+        waitingConsumers.push({
+          reject,
+          resolve,
+        });
+      });
+    },
+    push(value) {
+      if (ended) {
+        return;
+      }
+
+      const consumer = waitingConsumers.shift();
+
+      if (consumer) {
+        consumer.resolve({
+          done: false,
+          value,
+        });
+        return;
+      }
+
+      bufferedValues.push(value);
+    },
+  };
+}
+
+function createPromptReader(
+  stdin: ReadableStream,
+  stdout: Pick<WritableStream, 'write'>,
+): PromptReader {
+  const readline = createInterface({
+    input: stdin,
+    terminal: false,
+  });
+  const iterator = readline[Symbol.asyncIterator]();
+
+  return {
+    close() {
+      readline.close();
+    },
+    async nextPrompt() {
+      stdout.write('> ');
+      const next = await iterator.next();
+
+      return next.done ? undefined : next.value.trim();
+    },
+  };
+}
+
+function createSession(
+  args: ReturnType<typeof parseArgs>,
+  dependencies: CliDependencies,
+): AgentSessionLike {
+  const cwd = resolve(args.cwd ?? dependencies.cwd ?? process.cwd());
+  const env = dependencies.env ?? process.env;
+
+  return (dependencies.createSession ?? createDefaultSession)({
+    commandTimeoutMs: args.timeoutMs,
+    cwd,
+    env,
+    maxSteps: args.maxSteps,
+    model: args.model ?? env.OPENAI_MODEL,
+  });
+}
+
 function createDefaultSession(options: SessionFactoryOptions): AgentSessionLike {
   if (!options.model) {
     throw new Error('OPENAI_MODEL or --model is required');
@@ -113,74 +280,132 @@ function createDefaultSession(options: SessionFactoryOptions): AgentSessionLike 
   });
 }
 
-async function runInteractiveSession(
-  session: AgentSessionLike,
-  stdin: ReadableStream,
-  stdout: Pick<WritableStream, 'write'>,
-  stderr: Pick<WritableStream, 'write'>,
-): Promise<void> {
-  const readline = createInterface({
-    input: stdin,
-    terminal: false,
-  });
-
-  stdout.write('Interactive mode. Type "exit" or "quit" to leave.\n');
-  stdout.write('> ');
-
-  try {
-    for await (const line of readline) {
-      const prompt = line.trim();
-
-      if (!prompt) {
-        stdout.write('> ');
-        continue;
-      }
-
-      if (prompt === 'exit' || prompt === 'quit') {
-        break;
-      }
-
-      await runPrompt(session, prompt, stdout, stderr);
-      stdout.write('> ');
-    }
-  } finally {
-    readline.close();
+function flushWaitingConsumers<T>(
+  waitingConsumers: Array<{
+    reject: (error: unknown) => void;
+    resolve: (result: IteratorResult<T>) => void;
+  }>,
+): void {
+  while (waitingConsumers.length > 0) {
+    waitingConsumers.shift()?.resolve({
+      done: true,
+      value: undefined,
+    });
   }
 }
 
-async function runPrompt(
+async function* getAgentResponse(
   session: AgentSessionLike,
   prompt: string,
-  stdout: Pick<WritableStream, 'write'>,
-  stderr: Pick<WritableStream, 'write'>,
+): AsyncGenerator<AgentOutput> {
+  const queue = createOutputQueue<AgentOutput>();
+
+  void session
+    .run(prompt, {
+      onTextDelta(chunk) {
+        queue.push({
+          chunk,
+          kind: 'text-delta',
+        });
+      },
+      onToolResult(call, result) {
+        queue.push({
+          call,
+          kind: 'tool-result',
+          result,
+        });
+      },
+      onToolStart(call) {
+        queue.push({
+          call,
+          kind: 'tool-call',
+        });
+      },
+    })
+    .then(
+      (result) => {
+        queue.push({
+          kind: 'end',
+          result,
+        });
+        queue.close();
+      },
+      (error) => {
+        queue.fail(error);
+      },
+    );
+
+  while (true) {
+    const next = await queue.next();
+
+    if (next.done) {
+      return;
+    }
+
+    yield next.value;
+  }
+}
+
+async function getUserInput(promptReader: PromptReader): Promise<string | undefined> {
+  return await promptReader.nextPrompt();
+}
+
+function handleAgentOutput(
+  context: CliContext,
+  output: AgentOutput,
+  assistantHasOutput: boolean,
+): boolean {
+  switch (output.kind) {
+    case 'text-delta':
+      context.stdout.write(output.chunk);
+      return assistantHasOutput || output.chunk.length > 0;
+    case 'tool-call':
+      return writeToolCall(context, output.call, assistantHasOutput);
+    case 'tool-result':
+      writeToolResult(context, output.result);
+      return assistantHasOutput;
+    case 'end':
+      writeTurnEnd(context, output.result);
+      return assistantHasOutput;
+  }
+}
+
+function isExitPrompt(prompt: string): boolean {
+  return prompt === 'exit' || prompt === 'quit';
+}
+
+async function runAgentTurn(
+  context: CliContext,
+  session: AgentSessionLike,
+  prompt: string,
 ): Promise<void> {
   let assistantHasOutput = false;
-  const hooks: AgentHooks = {
-    onTextDelta(chunk) {
-      assistantHasOutput = assistantHasOutput || chunk.length > 0;
-      stdout.write(chunk);
-    },
-    onToolResult(_call, result) {
-      if (assistantHasOutput) {
-        stdout.write('\n');
-        assistantHasOutput = false;
-      }
 
-      stderr.write(`[tool:${result.name}] ${result.summary}\n`);
-    },
-    onToolStart(call) {
-      stderr.write(`[tool:${call.name}] ${call.inputText}\n`);
-    },
-  };
-
-  const result = await session.run(prompt, hooks);
-
-  if (assistantHasOutput) {
-    stdout.write('\n');
+  for await (const output of getAgentResponse(session, prompt)) {
+    assistantHasOutput = handleAgentOutput(context, output, assistantHasOutput);
   }
 
+  if (assistantHasOutput) {
+    context.stdout.write('\n');
+  }
+}
+
+function writeToolCall(context: CliContext, call: ToolCall, assistantHasOutput: boolean): boolean {
+  if (assistantHasOutput) {
+    context.stdout.write('\n');
+  }
+
+  context.stderr.write(`[tool:${call.name}] ${call.inputText}\n`);
+  return false;
+}
+
+function writeToolResult(context: CliContext, result: ToolExecutionResult): void {
+  context.stderr.write(`[tool:${result.name}] ${result.summary}\n`);
+}
+
+function writeTurnEnd(context: CliContext, result: AgentRunResult): void {
   if (result.stopReason === 'max_steps') {
-    stderr.write('[agent] stopped after the maximum number of steps\n');
+    context.stderr.write('[agent] stopped after the maximum number of steps\n');
   }
 }
 
