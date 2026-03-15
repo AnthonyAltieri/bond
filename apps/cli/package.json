@@ -1,0 +1,13 @@
+{
+  "name": "@bond/cli",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "cli": "bun run src/index.ts",
+    "test": "bun test",
+    "lint": "bunx oxlint src test"
+  },
+  "dependencies": {
+    "@bond/agent-core": "workspace:*"
+  }
+}
