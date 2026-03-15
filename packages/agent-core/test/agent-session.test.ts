@@ -60,18 +60,6 @@ class ScriptedModelClient implements ModelClient {
     private readonly steps: Array<ModelTurnResult | ((params: ModelTurnParams) => ModelTurnResult)>,
   ) {}
 
-  async runTurn(params: ModelTurnParams): Promise<ModelTurnResult> {
-    const iterator = this.streamTurn(params);
-
-    while (true) {
-      const next = await iterator.next();
-
-      if (next.done) {
-        return next.value;
-      }
-    }
-  }
-
   async *streamTurn(params: ModelTurnParams): AsyncGenerator<ModelTurnEvent, ModelTurnResult> {
     const step = this.steps[this.index];
     this.index += 1;

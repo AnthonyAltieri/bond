@@ -55,18 +55,6 @@ export class OpenAIChatClient implements ModelClient {
     this.baseUrl = (options.baseUrl ?? 'https://api.openai.com/v1').replace(/\/$/, '');
   }
 
-  async runTurn(params: ModelTurnParams): Promise<ModelTurnResult> {
-    const iterator = this.streamTurn(params);
-
-    while (true) {
-      const next = await iterator.next();
-
-      if (next.done) {
-        return next.value;
-      }
-    }
-  }
-
   async *streamTurn(params: ModelTurnParams): AsyncGenerator<ModelTurnEvent, ModelTurnResult> {
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
       body: JSON.stringify({

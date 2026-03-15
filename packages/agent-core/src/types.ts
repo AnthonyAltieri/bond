@@ -96,7 +96,6 @@ export interface ModelTurnResult {
 }
 
 export interface ModelClient {
-  runTurn(params: ModelTurnParams): Promise<ModelTurnResult>;
   streamTurn(params: ModelTurnParams): AsyncGenerator<ModelTurnEvent, ModelTurnResult>;
 }
 
