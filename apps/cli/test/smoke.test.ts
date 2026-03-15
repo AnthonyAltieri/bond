@@ -52,28 +52,17 @@ function makeSmokeSession(prompts: string[]) {
 
       if (prompt === 'inspect') {
         yield {
-          call: {
-            id: 'call_1',
-            inputText: '{"command":"pwd"}',
-            name: 'shell',
-          },
+          call: { id: 'call_1', inputText: '{"command":"pwd"}', name: 'shell' },
           kind: 'tool-call',
         };
         yield {
-          call: {
-            id: 'call_1',
-            inputText: '{"command":"pwd"}',
-            name: 'shell',
-          },
+          call: { id: 'call_1', inputText: '{"command":"pwd"}', name: 'shell' },
           kind: 'tool-result',
           result: makeToolResult(),
         };
       }
 
-      yield {
-        chunk: `done:${prompt}`,
-        kind: 'text-delta',
-      };
+      yield { chunk: `done:${prompt}`, kind: 'text-delta' };
 
       const result = {
         finalText: `done:${prompt}`,
@@ -82,10 +71,7 @@ function makeSmokeSession(prompts: string[]) {
         stopReason: 'completed',
       };
 
-      yield {
-        kind: 'end',
-        result,
-      };
+      yield { kind: 'end', result };
 
       return result;
     },
@@ -115,9 +101,5 @@ class MemoryStream extends PassThrough {
 }
 
 function makeToolResult(): ToolExecutionResult {
-  return {
-    content: '{"stdout":"test"}',
-    name: 'shell',
-    summary: 'exit=0 timedOut=false cwd=/tmp',
-  };
+  return { content: '{"stdout":"test"}', name: 'shell', summary: 'exit=0 timedOut=false cwd=/tmp' };
 }

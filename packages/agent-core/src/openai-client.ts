@@ -17,10 +17,7 @@ interface OpenAIChatCompletionChunk {
     delta?: {
       content?: string;
       tool_calls?: Array<{
-        function?: {
-          arguments?: string;
-          name?: string;
-        };
+        function?: { arguments?: string; name?: string };
         id?: string;
         index: number;
       }>;
@@ -30,9 +27,7 @@ interface OpenAIChatCompletionChunk {
 }
 
 interface OpenAIChatError {
-  error?: {
-    message?: string;
-  };
+  error?: { message?: string };
 }
 
 interface PartialToolCall {
@@ -70,10 +65,7 @@ export class OpenAIChatClient implements ModelClient {
           type: 'function',
         })),
       }),
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' },
       method: 'POST',
     });
 
@@ -102,9 +94,7 @@ async function* collectStream(
   while (true) {
     const { done, value } = await reader.read();
 
-    buffer += decoder.decode(value, {
-      stream: !done,
-    });
+    buffer += decoder.decode(value, { stream: !done });
 
     const events = splitSseEvents(buffer);
     buffer = events.rest;
@@ -135,18 +125,11 @@ async function* collectStream(
 
       if (content) {
         textParts.push(content);
-        yield {
-          chunk: content,
-          kind: 'text-delta',
-        };
+        yield { chunk: content, kind: 'text-delta' };
       }
 
       for (const toolCall of choice.delta?.tool_calls ?? []) {
-        const current = partialToolCalls[toolCall.index] ?? {
-          id: '',
-          inputText: '',
-          name: '',
-        };
+        const current = partialToolCalls[toolCall.index] ?? { id: '', inputText: '', name: '' };
 
         current.id = toolCall.id ?? current.id;
         current.inputText += toolCall.function?.arguments ?? '';
@@ -165,11 +148,7 @@ async function* collectStream(
     text: textParts.join(''),
     toolCalls: partialToolCalls
       .filter((toolCall) => toolCall.id && toolCall.name)
-      .map((toolCall) => ({
-        id: toolCall.id,
-        inputText: toolCall.inputText,
-        name: toolCall.name,
-      })),
+      .map((toolCall) => ({ id: toolCall.id, inputText: toolCall.inputText, name: toolCall.name })),
   };
 }
 
@@ -199,10 +178,7 @@ function parseSseData(event: string): string {
     .trim();
 }
 
-function splitSseEvents(buffer: string): {
-  items: string[];
-  rest: string;
-} {
+function splitSseEvents(buffer: string): { items: string[]; rest: string } {
   const normalized = buffer.replace(/\r\n/g, '\n');
   const items: string[] = [];
   let searchIndex = 0;
@@ -218,19 +194,12 @@ function splitSseEvents(buffer: string): {
     searchIndex = boundaryIndex + 2;
   }
 
-  return {
-    items,
-    rest: normalized.slice(searchIndex),
-  };
+  return { items, rest: normalized.slice(searchIndex) };
 }
 
 function toOpenAIMessage(message: Message): Record<string, unknown> {
   if (message.role === 'tool') {
-    return {
-      content: message.content,
-      role: 'tool',
-      tool_call_id: message.toolCallId,
-    };
+    return { content: message.content, role: 'tool', tool_call_id: message.toolCallId };
   }
 
   if (message.role === 'assistant' && message.toolCalls?.length) {
@@ -238,18 +207,12 @@ function toOpenAIMessage(message: Message): Record<string, unknown> {
       content: message.content || null,
       role: 'assistant',
       tool_calls: message.toolCalls.map((toolCall) => ({
-        function: {
-          arguments: toolCall.inputText,
-          name: toolCall.name,
-        },
+        function: { arguments: toolCall.inputText, name: toolCall.name },
         id: toolCall.id,
         type: 'function',
       })),
     };
   }
 
-  return {
-    content: message.content,
-    role: message.role,
-  };
+  return { content: message.content, role: message.role };
 }

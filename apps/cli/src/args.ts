@@ -9,9 +9,7 @@ export interface CliArgs {
 
 export function parseArgs(argv: string[]): CliArgs {
   const promptParts: string[] = [];
-  const args: CliArgs = {
-    help: false,
-  };
+  const args: CliArgs = { help: false };
 
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];

@@ -16,24 +16,14 @@ describe('AgentSession', () => {
       {
         stopReason: 'tool_calls',
         text: 'Inspecting the workspace.',
-        toolCalls: [
-          {
-            id: 'call_1',
-            inputText: '{"command":"printf hello"}',
-            name: 'shell',
-          },
-        ],
+        toolCalls: [{ id: 'call_1', inputText: '{"command":"printf hello"}', name: 'shell' }],
       },
       (params) => {
         const lastMessage = params.messages.at(-1);
         expect(lastMessage?.role).toBe('tool');
         expect(lastMessage?.content).toContain('"stdout": "hello"');
 
-        return {
-          stopReason: 'stop',
-          text: 'The command printed hello.',
-          toolCalls: [],
-        };
+        return { stopReason: 'stop', text: 'The command printed hello.', toolCalls: [] };
       },
     ]);
 
@@ -66,17 +56,11 @@ class ScriptedModelClient implements ModelClient {
 
     const result =
       typeof step === 'function'
-        ? step({
-            ...params,
-            messages: params.messages.map((message) => cloneMessage(message)),
-          })
+        ? step({ ...params, messages: params.messages.map((message) => cloneMessage(message)) })
         : step;
 
     if (result.text) {
-      yield {
-        chunk: result.text,
-        kind: 'text-delta',
-      };
+      yield { chunk: result.text, kind: 'text-delta' };
     }
 
     return result;

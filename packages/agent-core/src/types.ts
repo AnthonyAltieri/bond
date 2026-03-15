@@ -56,14 +56,8 @@ export interface ToolExecutionResult {
 }
 
 export type ToolEvent =
-  | {
-      chunk: string;
-      kind: 'stderr-delta';
-    }
-  | {
-      chunk: string;
-      kind: 'stdout-delta';
-    };
+  | { chunk: string; kind: 'stderr-delta' }
+  | { chunk: string; kind: 'stdout-delta' };
 
 export interface Tool {
   definition: ToolDefinition;
@@ -109,30 +103,9 @@ export interface AgentRunResult {
 }
 
 export type AgentEvent =
-  | {
-      chunk: string;
-      kind: 'text-delta';
-    }
-  | {
-      call: ToolCall;
-      kind: 'tool-call';
-    }
-  | {
-      call: ToolCall;
-      chunk: string;
-      kind: 'tool-stderr';
-    }
-  | {
-      call: ToolCall;
-      chunk: string;
-      kind: 'tool-stdout';
-    }
-  | {
-      call: ToolCall;
-      kind: 'tool-result';
-      result: ToolExecutionResult;
-    }
-  | {
-      kind: 'end';
-      result: AgentRunResult;
-    };
+  | { chunk: string; kind: 'text-delta' }
+  | { call: ToolCall; kind: 'tool-call' }
+  | { call: ToolCall; chunk: string; kind: 'tool-stderr' }
+  | { call: ToolCall; chunk: string; kind: 'tool-stdout' }
+  | { call: ToolCall; kind: 'tool-result'; result: ToolExecutionResult }
+  | { kind: 'end'; result: AgentRunResult };

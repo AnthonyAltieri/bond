@@ -132,10 +132,7 @@ function createPromptReader(
   stdin: ReadableStream,
   stdout: Pick<WritableStream, 'write'>,
 ): PromptReader {
-  const readline = createInterface({
-    input: stdin,
-    terminal: false,
-  });
+  const readline = createInterface({ input: stdin, terminal: false });
   const iterator = readline[Symbol.asyncIterator]();
 
   return {
@@ -172,10 +169,7 @@ function createSession(
 }
 
 function createDefaultSession(config: CliConfig): AgentSessionLike {
-  const client = new OpenAIChatClient({
-    apiKey: config.apiKey,
-    baseUrl: config.baseUrl,
-  });
+  const client = new OpenAIChatClient({ apiKey: config.apiKey, baseUrl: config.baseUrl });
 
   return new AgentSession({
     client,

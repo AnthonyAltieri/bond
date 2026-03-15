@@ -35,15 +35,9 @@ export function createShellTool(options: ShellToolOptions = {}): Tool {
       inputSchema: {
         additionalProperties: false,
         properties: {
-          command: {
-            type: 'string',
-          },
-          cwd: {
-            type: 'string',
-          },
-          timeoutMs: {
-            type: 'number',
-          },
+          command: { type: 'string' },
+          cwd: { type: 'string' },
+          timeoutMs: { type: 'number' },
         },
         required: ['command'],
         type: 'object',
@@ -167,11 +161,7 @@ function parseShellInput(inputText: string): ShellInput {
     throw new Error('shell input requires a non-empty "command" string');
   }
 
-  return {
-    command,
-    cwd,
-    timeoutMs,
-  };
+  return { command, cwd, timeoutMs };
 }
 
 function getOptionalNumber(source: object, key: string): number | undefined {
@@ -216,10 +206,7 @@ async function readProcessStream(
   kind: 'stderr-delta' | 'stdout-delta',
   chunks: string[],
   outputQueue: ReturnType<
-    typeof createAsyncQueue<{
-      chunk: string;
-      kind: 'stderr-delta' | 'stdout-delta';
-    }>
+    typeof createAsyncQueue<{ chunk: string; kind: 'stderr-delta' | 'stdout-delta' }>
   >,
 ): Promise<void> {
   if (!stream) {
@@ -236,19 +223,14 @@ async function readProcessStream(
       break;
     }
 
-    const chunk = decoder.decode(value, {
-      stream: true,
-    });
+    const chunk = decoder.decode(value, { stream: true });
 
     if (!chunk) {
       continue;
     }
 
     chunks.push(chunk);
-    outputQueue.push({
-      chunk,
-      kind,
-    });
+    outputQueue.push({ chunk, kind });
   }
 
   const finalChunk = decoder.decode();
@@ -258,10 +240,7 @@ async function readProcessStream(
   }
 
   chunks.push(finalChunk);
-  outputQueue.push({
-    chunk: finalChunk,
-    kind,
-  });
+  outputQueue.push({ chunk: finalChunk, kind });
 }
 
 function resolveShellCwd(cwd: string | undefined, context: ToolExecutionContext): string {
@@ -274,22 +253,10 @@ function resolveShellCwd(cwd: string | undefined, context: ToolExecutionContext)
   return targetCwd;
 }
 
-function truncate(
-  value: string,
-  maxLength: number,
-): {
-  truncated: boolean;
-  value: string;
-} {
+function truncate(value: string, maxLength: number): { truncated: boolean; value: string } {
   if (value.length <= maxLength) {
-    return {
-      truncated: false,
-      value,
-    };
+    return { truncated: false, value };
   }
 
-  return {
-    truncated: true,
-    value: `${value.slice(0, maxLength)}\n...[truncated]`,
-  };
+  return { truncated: true, value: `${value.slice(0, maxLength)}\n...[truncated]` };
 }

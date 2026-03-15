@@ -27,24 +27,15 @@ export function createAsyncQueue<T>(): AsyncQueue<T> {
     },
     async next() {
       if (bufferedValues.length > 0) {
-        return {
-          done: false,
-          value: bufferedValues.shift() as T,
-        };
+        return { done: false, value: bufferedValues.shift() as T };
       }
 
       if (ended) {
-        return {
-          done: true,
-          value: undefined,
-        };
+        return { done: true, value: undefined };
       }
 
       return await new Promise<IteratorResult<T>>((resolve, reject) => {
-        waitingConsumers.push({
-          reject,
-          resolve,
-        });
+        waitingConsumers.push({ reject, resolve });
       });
     },
     push(value) {
@@ -55,10 +46,7 @@ export function createAsyncQueue<T>(): AsyncQueue<T> {
       const consumer = waitingConsumers.shift();
 
       if (consumer) {
-        consumer.resolve({
-          done: false,
-          value,
-        });
+        consumer.resolve({ done: false, value });
         return;
       }
 
@@ -74,9 +62,6 @@ function flushWaitingConsumers<T>(
   }>,
 ): void {
   while (waitingConsumers.length > 0) {
-    waitingConsumers.shift()?.resolve({
-      done: true,
-      value: undefined,
-    });
+    waitingConsumers.shift()?.resolve({ done: true, value: undefined });
   }
 }
