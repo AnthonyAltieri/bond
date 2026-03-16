@@ -4,13 +4,13 @@ import type {
   ModelTurnParams,
   ModelTurnResult,
   ModelUsage,
-  ResponseContentPart,
   ResponseFunctionCallItem,
   ResponseInputItem,
   ResponseMessageItem,
   ResponseReasoningItem,
   ToolCall,
 } from './types.ts';
+import { z } from 'zod';
 
 interface OpenAIResponsesClientOptions {
   apiKey: string;
@@ -30,6 +30,42 @@ interface ResponseDeltaEvent {
   delta?: string;
   type?: string;
 }
+
+const responseContentPartSchema = z.discriminatedUnion('type', [
+  z.object({ text: z.string(), type: z.literal('input_text') }),
+  z.object({ text: z.string(), type: z.literal('output_text') }),
+  z.object({ text: z.string(), type: z.literal('summary_text') }),
+]);
+
+const responseMessageItemSchema = z.object({
+  content: z.array(responseContentPartSchema).min(1),
+  role: z.enum(['assistant', 'developer', 'user']),
+  type: z.literal('message'),
+});
+
+const responseFunctionCallItemSchema = z.object({
+  arguments: z.string(),
+  call_id: z.string(),
+  name: z.string(),
+  type: z.literal('function_call'),
+});
+
+const responseFunctionCallOutputItemSchema = z.object({
+  call_id: z.string(),
+  output: z.string(),
+  type: z.literal('function_call_output'),
+});
+
+const responseReasoningItemSchema = z
+  .object({
+    encrypted_content: z.string().optional(),
+    summary: z
+      .array(z.object({ text: z.string(), type: z.literal('summary_text') }))
+      .min(1)
+      .optional(),
+    type: z.literal('reasoning'),
+  })
+  .refine((item) => item.summary !== undefined || item.encrypted_content !== undefined);
 
 export class OpenAIResponsesClient implements ModelClient {
   private readonly apiKey: string;
@@ -153,122 +189,12 @@ async function formatOpenAIError(response: Response): Promise<string> {
   return `OpenAI request failed (${response.status}): ${bodyText}`;
 }
 
-function normalizeContentParts(value: unknown): ResponseContentPart[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  const parts: ResponseContentPart[] = [];
-
-  for (const part of value) {
-    if (!part || typeof part !== 'object') {
-      continue;
-    }
-
-    const type = getString(part, 'type');
-    const text = getString(part, 'text');
-
-    if (!text || !type) {
-      continue;
-    }
-
-    if (type === 'input_text' || type === 'output_text' || type === 'summary_text') {
-      parts.push({ text, type });
-    }
-  }
-
-  return parts;
-}
-
 function normalizeOutputItems(output: unknown): ResponseInputItem[] {
   if (!Array.isArray(output)) {
     return [];
   }
 
-  const items: ResponseInputItem[] = [];
-
-  for (const item of output) {
-    if (!item || typeof item !== 'object') {
-      continue;
-    }
-
-    const type = getString(item, 'type');
-
-    if (type === 'message') {
-      const role = getString(item, 'role');
-      const content = normalizeContentParts(Reflect.get(item, 'content'));
-
-      if ((role === 'assistant' || role === 'developer' || role === 'user') && content.length > 0) {
-        items.push({ content, role, type: 'message' } satisfies ResponseMessageItem);
-      }
-
-      continue;
-    }
-
-    if (type === 'function_call') {
-      const argumentsText = getString(item, 'arguments');
-      const callId = getString(item, 'call_id');
-      const name = getString(item, 'name');
-
-      if (argumentsText && callId && name) {
-        items.push({
-          arguments: argumentsText,
-          call_id: callId,
-          name,
-          type: 'function_call',
-        } satisfies ResponseFunctionCallItem);
-      }
-
-      continue;
-    }
-
-    if (type === 'function_call_output') {
-      const callId = getString(item, 'call_id');
-      const outputText = getString(item, 'output');
-
-      if (callId && outputText) {
-        items.push({ call_id: callId, output: outputText, type: 'function_call_output' });
-      }
-
-      continue;
-    }
-
-    if (type === 'reasoning') {
-      const summary = normalizeSummaryParts(Reflect.get(item, 'summary'));
-      const encryptedContent = getString(item, 'encrypted_content');
-
-      if (summary.length > 0 || encryptedContent) {
-        items.push({
-          encrypted_content: encryptedContent,
-          summary: summary.length > 0 ? summary : undefined,
-          type: 'reasoning',
-        } satisfies ResponseReasoningItem);
-      }
-    }
-  }
-
-  return items;
-}
-
-function normalizeSummaryParts(value: unknown): ResponseReasoningItem['summary'] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  const summary = value
-    .map((part) => {
-      if (!part || typeof part !== 'object') {
-        return undefined;
-      }
-
-      const text = getString(part, 'text');
-      const type = getString(part, 'type');
-
-      return text && type === 'summary_text' ? { text, type } : undefined;
-    })
-    .filter((part) => part !== undefined);
-
-  return summary;
+  return output.flatMap((item) => parseOutputItem(item));
 }
 
 function parseSseData(event: string): string {
@@ -320,7 +246,31 @@ function toToolCalls(items: ResponseInputItem[]): ToolCall[] {
     .map((item) => ({ id: item.call_id, inputText: item.arguments, name: item.name }));
 }
 
-function getString(source: object, key: string): string | undefined {
-  const value = Reflect.get(source, key);
-  return typeof value === 'string' ? value : undefined;
+function parseOutputItem(item: unknown): ResponseInputItem[] {
+  const itemType = z.object({ type: z.string() }).safeParse(item);
+
+  if (!itemType.success) {
+    return [];
+  }
+
+  switch (itemType.data.type) {
+    case 'message': {
+      const parsed = responseMessageItemSchema.safeParse(item);
+      return parsed.success ? [parsed.data satisfies ResponseMessageItem] : [];
+    }
+    case 'function_call': {
+      const parsed = responseFunctionCallItemSchema.safeParse(item);
+      return parsed.success ? [parsed.data satisfies ResponseFunctionCallItem] : [];
+    }
+    case 'function_call_output': {
+      const parsed = responseFunctionCallOutputItemSchema.safeParse(item);
+      return parsed.success ? [parsed.data] : [];
+    }
+    case 'reasoning': {
+      const parsed = responseReasoningItemSchema.safeParse(item);
+      return parsed.success ? [parsed.data satisfies ResponseReasoningItem] : [];
+    }
+    default:
+      return [];
+  }
 }

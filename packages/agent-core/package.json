@@ -8,5 +8,8 @@
   "scripts": {
     "test": "bun test",
     "lint": "bunx oxlint src test"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
   }
 }
