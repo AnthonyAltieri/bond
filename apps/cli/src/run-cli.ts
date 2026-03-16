@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 
 import {
   AgentSession,
-  OpenAIChatClient,
+  OpenAIResponsesClient,
   type ToolCall,
   createShellTool,
   type AgentEvent,
@@ -41,7 +41,9 @@ interface PromptReader {
 }
 
 interface SessionFactoryOptions {
+  autoCompactTokenLimit?: number;
   commandTimeoutMs?: number;
+  compactionModel?: string;
   cwd: string;
   env: Record<string, string | undefined>;
   maxSteps?: number;
@@ -108,15 +110,23 @@ function buildHelpText(): string {
     '',
     'Flags:',
     '  --model <name>       Override OPENAI_MODEL',
+    '  --compaction-model <name>',
+    '                       Override OPENAI_COMPACTION_MODEL',
     '  --max-steps <n>      Max tool/model loop iterations',
+    '  --auto-compact-tokens <n>',
+    '                       Auto-compact once the request exceeds the estimated token limit',
     '  --timeout <ms>       Shell tool timeout in milliseconds',
     '  --cwd <path>         Working directory for the session',
     '  -h, --help           Show this help text',
     '',
     'Environment:',
     '  OPENAI_API_KEY       Required for the default OpenAI client',
+    '  OPENAI_AUTO_COMPACT_TOKENS',
+    '                       Optional estimated token limit for automatic compaction',
     '  OPENAI_MODEL         Required unless --model is passed',
-    '  OPENAI_BASE_URL      Optional override for OpenAI-compatible APIs',
+    '  OPENAI_COMPACTION_MODEL',
+    '                       Optional model override for compaction turns',
+    '  OPENAI_BASE_URL      Optional override for Responses API-compatible APIs',
   ].join('\n');
 }
 
@@ -157,7 +167,9 @@ function createSession(
 
   if (dependencies.createSession) {
     return dependencies.createSession({
+      autoCompactTokenLimit: args.autoCompactTokens,
       commandTimeoutMs: args.timeoutMs,
+      compactionModel: args.compactionModel,
       cwd,
       env: runtimeEnv,
       maxSteps: args.maxSteps,
@@ -169,14 +181,17 @@ function createSession(
 }
 
 function createDefaultSession(config: CliConfig): AgentSessionLike {
-  const client = new OpenAIChatClient({ apiKey: config.apiKey, baseUrl: config.baseUrl });
+  const client = new OpenAIResponsesClient({ apiKey: config.apiKey, baseUrl: config.baseUrl });
 
   return new AgentSession({
+    autoCompactTokenLimit: config.autoCompactTokenLimit,
     client,
     commandTimeoutMs: config.commandTimeoutMs,
+    compactionModel: config.compactionModel,
     cwd: config.cwd,
     maxSteps: config.maxSteps,
     model: config.model,
+    shell: config.shell,
     tools: [createShellTool()],
   });
 }
@@ -194,6 +209,12 @@ function handleAgentOutput(
     case 'text-delta':
       context.stdout.write(output.chunk);
       return assistantHasOutput || output.chunk.length > 0;
+    case 'reasoning-delta':
+      return assistantHasOutput;
+    case 'compaction-start':
+      return assistantHasOutput;
+    case 'compaction-complete':
+      return assistantHasOutput;
     case 'tool-call':
       return writeToolCall(context, output.call, assistantHasOutput);
     case 'tool-stdout':

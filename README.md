@@ -1,16 +1,21 @@
 # bond
 
-`bond` is a deliberately small agentic CLI built with Bun. The first version is intentionally narrow: one CLI app, one core package, one OpenAI-compatible provider, and one built-in `shell` tool.
+`bond` is a deliberately small agentic CLI built with Bun. The current version stays intentionally narrow: one CLI app, one core package, one Responses API-compatible provider, and one built-in `shell` tool.
 
-## Layout
+## Structure
 
-- `apps/cli`: terminal entrypoint, arg parsing, and interactive mode
-- `packages/agent-core`: agent session loop, provider client, and `shell` tool
+- `apps/cli`: argv/env parsing, session construction, interactive loop, stream rendering
+- `packages/agent-core/src/agent-session.ts`: orchestrates prompt -> model stream -> tool execution -> follow-up turn -> completion
+- `packages/agent-core/src/responses-client.ts`: `POST /responses`, SSE parsing, finalized output extraction
+- `packages/agent-core/src/conversation-state.ts`: scaffold items, conversation items, tool outputs
+- `packages/agent-core/src/prompt-scaffold.ts`: permissions instructions, repo instructions, environment context
+- `packages/agent-core/src/compactor.ts`: summary turn, conversation replacement
+- `packages/agent-core/src/tools/shell.ts`: shell execution, stdout/stderr streaming, result summary
 
 ## Requirements
 
 - Bun `1.2.22` or newer
-- An OpenAI-compatible API endpoint
+- A Responses API-compatible endpoint
 
 ## Setup
 
@@ -24,6 +29,8 @@ Optional:
 
 ```sh
 export OPENAI_BASE_URL=https://api.openai.com/v1
+export OPENAI_AUTO_COMPACT_TOKENS=24000
+export OPENAI_COMPACTION_MODEL=your_compaction_model
 ```
 
 ## Usage
@@ -43,7 +50,7 @@ bun run cli
 Useful flags:
 
 ```sh
-bun run cli -- --model your_model --max-steps 8 --timeout 20000 --cwd packages/agent-core "inspect this package"
+bun run cli -- --model your_model --auto-compact-tokens 24000 --timeout 20000 --cwd packages/agent-core "inspect this package"
 ```
 
 ## Example
@@ -67,14 +74,14 @@ bun run format:check
 
 Included in v1:
 
-- in-memory conversation state
+- stateless Responses API requests with in-memory conversation state
 - one-shot and interactive modes
-- bounded tool/model loop
+- bounded tool/model loop with automatic compaction
 - one `shell` tool
 
 Explicitly out of scope:
 
 - multi-provider support
-- approvals or sandboxing
+- approvals or full sandbox policy management
 - TUI features
 - background jobs or resumable sessions
