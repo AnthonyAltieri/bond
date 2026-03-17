@@ -12,7 +12,8 @@
     "lint": "bunx oxlint .",
     "lint:fix": "bunx oxlint --fix .",
     "format": "bunx oxfmt .",
-    "format:check": "bunx oxfmt --check ."
+    "format:check": "bunx oxfmt --check .",
+    "evals": "bun test packages/agent-core/test/openai-evals.test.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.3.10",
