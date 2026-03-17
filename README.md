@@ -66,6 +66,7 @@ You are in /path/to/workspace.
 
 ```sh
 bun run test
+bun run evals # runs only when OPENAI_API_KEY is set
 bun run lint
 bun run format:check
 ```
