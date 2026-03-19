@@ -57,6 +57,8 @@ export class AgentSession {
 
   private readonly model: string;
 
+  private readonly shell: string;
+
   private readonly state: ConversationState;
 
   private readonly toolDefinitions: ToolDefinition[];
@@ -76,10 +78,11 @@ export class AgentSession {
     this.instructions = options.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
     this.maxSteps = options.maxSteps ?? DEFAULT_MAX_STEPS;
     this.model = options.model;
+    this.shell = options.shell ?? DEFAULT_SHELL;
     this.toolDefinitions = tools.map((tool) => tool.definition);
     this.toolMap = new Map(tools.map((tool) => [tool.definition.name, tool]));
     this.state = new ConversationState(
-      buildPromptScaffold({ cwd: this.cwd, shell: options.shell ?? DEFAULT_SHELL }),
+      buildPromptScaffold({ cwd: this.cwd, shell: this.shell }),
     );
   }
 
@@ -194,6 +197,7 @@ export class AgentSession {
       callId: call.id,
       cwd: this.cwd,
       defaultTimeoutMs: this.commandTimeoutMs,
+      shell: this.shell,
       workspaceRoot: this.cwd,
     });
 
@@ -212,7 +216,13 @@ export class AgentSession {
 async function* runToolCall(
   call: ToolCall,
   tool: Tool | undefined,
-  context: { callId: string; cwd: string; defaultTimeoutMs: number; workspaceRoot: string },
+  context: {
+    callId: string;
+    cwd: string;
+    defaultTimeoutMs: number;
+    shell: string;
+    workspaceRoot: string;
+  },
 ): AsyncGenerator<ToolEvent, ToolExecutionResult> {
   if (!tool) {
     return {

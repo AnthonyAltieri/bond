@@ -30,7 +30,7 @@ export function buildPromptScaffold(options: PromptScaffoldOptions): ResponseInp
   );
 
   if (repoInstructions) {
-    items.push(createUserMessage(repoInstructions));
+    items.push(createDeveloperMessage(repoInstructions));
   }
 
   items.push(createUserMessage(formatEnvironmentContext(options.cwd, options.shell)));

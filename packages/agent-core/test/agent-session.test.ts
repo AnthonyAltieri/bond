@@ -186,12 +186,12 @@ describe('buildPromptScaffold', () => {
     expect(items).toHaveLength(3);
     expect(items[1]).toEqual({
       content: [{ text: expect.stringContaining('Root instructions'), type: 'input_text' }],
-      role: 'user',
+      role: 'developer',
       type: 'message',
     });
     expect(items[1]).toEqual({
       content: [{ text: expect.stringContaining('Nested instructions'), type: 'input_text' }],
-      role: 'user',
+      role: 'developer',
       type: 'message',
     });
     expect(items[2]).toEqual({

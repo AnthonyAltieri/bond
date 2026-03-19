@@ -67,7 +67,7 @@ export function createShellTool(options: ShellToolOptions = {}): Tool {
       const stdoutChunks: string[] = [];
 
       let timedOut = false;
-      const child = Bun.spawn(['sh', '-lc', input.command], {
+      const child = Bun.spawn([context.shell, '-lc', input.command], {
         cwd: targetCwd,
         stderr: 'pipe',
         stdout: 'pipe',

@@ -20,6 +20,7 @@ export interface ToolExecutionContext {
   callId: string;
   cwd: string;
   defaultTimeoutMs: number;
+  shell: string;
   workspaceRoot: string;
 }
 
