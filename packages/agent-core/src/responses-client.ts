@@ -31,32 +31,32 @@ interface ResponseDeltaEvent {
   type?: string;
 }
 
-const responseContentPartSchema = z.discriminatedUnion('type', [
+const ResponseContentPartSchema = z.discriminatedUnion('type', [
   z.object({ text: z.string(), type: z.literal('input_text') }),
   z.object({ text: z.string(), type: z.literal('output_text') }),
   z.object({ text: z.string(), type: z.literal('summary_text') }),
 ]);
 
-const responseMessageItemSchema = z.object({
-  content: z.array(responseContentPartSchema).min(1),
+const ResponseMessageItemSchema = z.object({
+  content: z.array(ResponseContentPartSchema).min(1),
   role: z.enum(['assistant', 'developer', 'user']),
   type: z.literal('message'),
 });
 
-const responseFunctionCallItemSchema = z.object({
+const ResponseFunctionCallItemSchema = z.object({
   arguments: z.string(),
   call_id: z.string(),
   name: z.string(),
   type: z.literal('function_call'),
 });
 
-const responseFunctionCallOutputItemSchema = z.object({
+const ResponseFunctionCallOutputItemSchema = z.object({
   call_id: z.string(),
   output: z.string(),
   type: z.literal('function_call_output'),
 });
 
-const responseReasoningItemSchema = z
+const ResponseReasoningItemSchema = z
   .object({
     encrypted_content: z.string().optional(),
     summary: z
@@ -255,19 +255,19 @@ function parseOutputItem(item: unknown): ResponseInputItem[] {
 
   switch (itemType.data.type) {
     case 'message': {
-      const parsed = responseMessageItemSchema.safeParse(item);
+      const parsed = ResponseMessageItemSchema.safeParse(item);
       return parsed.success ? [parsed.data satisfies ResponseMessageItem] : [];
     }
     case 'function_call': {
-      const parsed = responseFunctionCallItemSchema.safeParse(item);
+      const parsed = ResponseFunctionCallItemSchema.safeParse(item);
       return parsed.success ? [parsed.data satisfies ResponseFunctionCallItem] : [];
     }
     case 'function_call_output': {
-      const parsed = responseFunctionCallOutputItemSchema.safeParse(item);
+      const parsed = ResponseFunctionCallOutputItemSchema.safeParse(item);
       return parsed.success ? [parsed.data] : [];
     }
     case 'reasoning': {
-      const parsed = responseReasoningItemSchema.safeParse(item);
+      const parsed = ResponseReasoningItemSchema.safeParse(item);
       return parsed.success ? [parsed.data satisfies ResponseReasoningItem] : [];
     }
     default:

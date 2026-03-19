@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { CliArgs } from './args.ts';
 import { readCliEnv } from './env.ts';
 
-const cliConfigSchema = z.object({
+const CliConfigSchema = z.object({
   apiKey: z.string().min(1),
   autoCompactTokenLimit: z.number().int().positive().optional(),
   baseUrl: z.string().url().optional(),
@@ -15,7 +15,7 @@ const cliConfigSchema = z.object({
   shell: z.string().min(1),
 });
 
-export type CliConfig = z.infer<typeof cliConfigSchema>;
+export type CliConfig = z.infer<typeof CliConfigSchema>;
 
 export function createCliConfig(
   args: CliArgs,
@@ -24,7 +24,7 @@ export function createCliConfig(
 ): CliConfig {
   const env = readCliEnv(runtimeEnv);
 
-  return cliConfigSchema.parse({
+  return CliConfigSchema.parse({
     apiKey: env.OPENAI_API_KEY,
     autoCompactTokenLimit: args.autoCompactTokens ?? env.OPENAI_AUTO_COMPACT_TOKENS,
     baseUrl: env.OPENAI_BASE_URL,
