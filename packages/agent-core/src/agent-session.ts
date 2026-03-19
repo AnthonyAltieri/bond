@@ -1,6 +1,8 @@
 import { compactConversation } from './compactor.ts';
 import { ConversationState } from './conversation-state.ts';
 import { buildPromptScaffold } from './prompt-scaffold.ts';
+import { DEFAULT_SYSTEM_PROMPT } from './system-prompt.ts';
+import type { Tool, ToolDefinition, ToolEvent, ToolExecutionResult } from '@bond/tool-runtime';
 import type {
   AgentEvent,
   AgentRunResult,
@@ -8,24 +10,13 @@ import type {
   ModelTurnEvent,
   ModelTurnResult,
   ResponseInputItem,
-  Tool,
   ToolCall,
-  ToolDefinition,
-  ToolEvent,
-  ToolExecutionResult,
 } from './types.ts';
 
 const DEFAULT_AUTO_COMPACT_TOKENS = 24_000;
-const DEFAULT_MAX_STEPS = 6;
-const DEFAULT_TIMEOUT_MS = 15_000;
+const DEFAULT_MAX_STEPS = 16;
+const DEFAULT_TIMEOUT_MS = 120_000;
 const DEFAULT_SHELL = 'sh';
-
-export const DEFAULT_SYSTEM_PROMPT = [
-  'You are a minimal coding agent running inside a local CLI.',
-  'Use the shell tool when direct inspection or command execution is useful.',
-  'Keep answers concise and avoid unnecessary tool calls.',
-  'When a tool result is enough to answer, respond directly.',
-].join(' ');
 
 export interface AgentSessionOptions {
   autoCompactTokenLimit?: number;

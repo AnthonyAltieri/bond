@@ -1,5 +1,6 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "bond",
@@ -14,6 +15,7 @@
       "name": "@bond/cli",
       "dependencies": {
         "@bond/agent-core": "workspace:*",
+        "@bond/tool-registry": "workspace:*",
         "@t3-oss/env-core": "^0.13.10",
         "zod": "^4.3.6",
       },
@@ -21,7 +23,27 @@
     "packages/agent-core": {
       "name": "@bond/agent-core",
       "dependencies": {
+        "@bond/tool-runtime": "workspace:*",
         "zod": "^4.3.6",
+      },
+      "devDependencies": {
+        "@bond/tool-shell": "workspace:*",
+      },
+    },
+    "packages/tool-registry": {
+      "name": "@bond/tool-registry",
+      "dependencies": {
+        "@bond/tool-runtime": "workspace:*",
+        "@bond/tool-shell": "workspace:*",
+      },
+    },
+    "packages/tool-runtime": {
+      "name": "@bond/tool-runtime",
+    },
+    "packages/tool-shell": {
+      "name": "@bond/tool-shell",
+      "dependencies": {
+        "@bond/tool-runtime": "workspace:*",
       },
     },
   },
@@ -29,6 +51,12 @@
     "@bond/agent-core": ["@bond/agent-core@workspace:packages/agent-core"],
 
     "@bond/cli": ["@bond/cli@workspace:apps/cli"],
+
+    "@bond/tool-registry": ["@bond/tool-registry@workspace:packages/tool-registry"],
+
+    "@bond/tool-runtime": ["@bond/tool-runtime@workspace:packages/tool-runtime"],
+
+    "@bond/tool-shell": ["@bond/tool-shell@workspace:packages/tool-shell"],
 
     "@oxfmt/binding-android-arm-eabi": ["@oxfmt/binding-android-arm-eabi@0.40.0", "", { "os": "android", "cpu": "arm" }, "sha512-S6zd5r1w/HmqR8t0CTnGjFTBLDq2QKORPwriCHxo4xFNuhmOTABGjPaNvCJJVnrKBLsohOeiDX3YqQfJPF+FXw=="],
 

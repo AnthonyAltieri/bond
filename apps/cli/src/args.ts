@@ -1,20 +1,35 @@
 export interface CliArgs {
   autoCompactTokens?: number;
+  caseId?: string;
   compactionModel?: string;
   cwd?: string;
   help: boolean;
+  judgeModel?: string;
+  judgeModelArchitecture?: string;
+  judgeModelCorrectness?: string;
+  judgeModelGoal?: string;
+  judgeModelSimplicity?: string;
+  manifestPath?: string;
   maxSteps?: number;
   model?: string;
+  mode: 'chat' | 'eval';
+  outputPath?: string;
   prompt?: string;
+  runAll: boolean;
   timeoutMs?: number;
 }
 
 export function parseArgs(argv: string[]): CliArgs {
   const promptParts: string[] = [];
-  const args: CliArgs = { help: false };
+  const args: CliArgs = { help: false, mode: 'chat', runAll: false };
 
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
+
+    if (index === 0 && token === 'eval') {
+      args.mode = 'eval';
+      continue;
+    }
 
     switch (token) {
       case '--help':
@@ -45,9 +60,48 @@ export function parseArgs(argv: string[]): CliArgs {
         args.cwd = requireValue(argv, index, token);
         index += 1;
         break;
-      default:
-        promptParts.push(token);
+      case '--manifest':
+        args.manifestPath = requireValue(argv, index, token);
+        index += 1;
         break;
+      case '--case':
+        args.caseId = requireValue(argv, index, token);
+        index += 1;
+        break;
+      case '--all':
+        args.runAll = true;
+        break;
+      case '--output':
+        args.outputPath = requireValue(argv, index, token);
+        index += 1;
+        break;
+      case '--judge-model':
+        args.judgeModel = requireValue(argv, index, token);
+        index += 1;
+        break;
+      case '--judge-model-architecture':
+        args.judgeModelArchitecture = requireValue(argv, index, token);
+        index += 1;
+        break;
+      case '--judge-model-correctness':
+        args.judgeModelCorrectness = requireValue(argv, index, token);
+        index += 1;
+        break;
+      case '--judge-model-simplicity':
+        args.judgeModelSimplicity = requireValue(argv, index, token);
+        index += 1;
+        break;
+      case '--judge-model-goal':
+        args.judgeModelGoal = requireValue(argv, index, token);
+        index += 1;
+        break;
+      default:
+        if (args.mode === 'chat') {
+          promptParts.push(token);
+          break;
+        }
+
+        throw new Error(`Unknown argument: ${token}`);
     }
   }
 

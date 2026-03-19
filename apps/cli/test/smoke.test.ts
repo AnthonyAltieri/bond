@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { PassThrough } from 'node:stream';
 
-import type { AgentEvent, AgentRunResult, ToolExecutionResult } from '@bond/agent-core';
+import type { AgentEvent, AgentRunResult, EvalRunReport, ToolExecutionResult } from '@bond/agent-core';
 
 import { runCli } from '../src/run-cli.ts';
 
@@ -41,6 +41,56 @@ describe('cli smoke', () => {
     expect(prompts).toEqual(['first', 'second']);
     expect(stdout.text()).toContain('done:first');
     expect(stdout.text()).toContain('done:second');
+    expect(stderr.text()).toBe('');
+  });
+
+  test('runs the eval subcommand and reports the JSON output path', async () => {
+    const stdout = new MemoryStream();
+    const stderr = new MemoryStream();
+    const writtenReports: Array<{ path: string; report: EvalRunReport }> = [];
+
+    const exitCode = await runCli(
+      ['eval', '--manifest', 'evals/demo.json', '--case', 'demo', '--output', 'reports/demo.json'],
+      {
+        cwd: '/workspace',
+        env: {
+          OPENAI_API_KEY: 'test-key',
+          OPENAI_JUDGE_MODEL: 'judge-model',
+          OPENAI_MODEL: 'agent-model',
+        },
+        evalCommand: {
+          loadManifest: async () =>
+            JSON.stringify({
+              cases: [
+                {
+                  description: 'Demo case',
+                  id: 'demo',
+                  prompt: 'Say ok',
+                  workingDirectoryMode: 'repo',
+                },
+              ],
+              version: 1,
+            }),
+          runManifest: async () => [makeEvalReport()],
+          writeReportFile: async (path, report) => {
+            writtenReports.push({ path, report });
+          },
+        },
+        stderr,
+        stdout,
+      },
+    );
+
+    expect(exitCode).toBe(0);
+    expect(stdout.text()).toContain('eval:demo');
+    expect(stdout.text()).toContain('correctness=4');
+    expect(stdout.text()).toContain('report=/workspace/reports/demo.json');
+    expect(writtenReports).toEqual([
+      {
+        path: '/workspace/reports/demo.json',
+        report: makeEvalReport(),
+      },
+    ]);
     expect(stderr.text()).toBe('');
   });
 });
@@ -103,4 +153,99 @@ class MemoryStream extends PassThrough {
 
 function makeToolResult(): ToolExecutionResult {
   return { content: '{"stdout":"test"}', name: 'shell', summary: 'exit=0 timedOut=false cwd=/tmp' };
+}
+
+function makeEvalReport(): EvalRunReport {
+  return {
+    capturedFiles: [{ content: 'ok', path: 'artifact.txt' }],
+    case: {
+      description: 'Demo case',
+      id: 'demo',
+      prompt: 'Say ok',
+      workingDirectory: '/workspace',
+      workingDirectoryMode: 'repo',
+    },
+    durationMs: 12,
+    finalResponse: 'EVAL_RESULT=ok',
+    judgePassed: true,
+    judges: {
+      blockingIssues: [],
+      combinedSummary: 'Combined verdict: pass at 4/5.',
+      compositePercent: 75,
+      compositeScore: 4,
+      needsHumanReview: false,
+      passed: true,
+      results: [
+        {
+          confidence: 'high',
+          id: 'architecture_critic',
+          issues: [],
+          label: 'Architecture Critic',
+          pass: true,
+          passThreshold: 3,
+          score: 4,
+          strengths: ['Modular'],
+          summary: 'Good structure.',
+          weight: 0.25,
+        },
+        {
+          confidence: 'high',
+          id: 'simplicity_critic',
+          issues: [],
+          label: 'Simplicity Critic',
+          pass: true,
+          passThreshold: 3,
+          score: 4,
+          strengths: ['Small surface'],
+          summary: 'Simple enough.',
+          weight: 0.15,
+        },
+        {
+          confidence: 'high',
+          id: 'correctness_critic',
+          issues: [],
+          label: 'Correctness Critic',
+          pass: true,
+          passThreshold: 4,
+          score: 4,
+          strengths: ['Tests passed'],
+          summary: 'Behavior is supported by verification evidence.',
+          weight: 0.25,
+        },
+        {
+          confidence: 'high',
+          id: 'goal_critic',
+          issues: [],
+          label: 'Goal Critic',
+          pass: true,
+          passThreshold: 4,
+          score: 4,
+          strengths: ['Matches prompt'],
+          summary: 'Goal satisfied.',
+          weight: 0.35,
+        },
+      ],
+    },
+    model: 'agent-model',
+    objectiveChecks: [
+      {
+        command: 'printf ok',
+        category: 'test',
+        details: 'exit=0 expected=0',
+        exitCode: 0,
+        name: 'check',
+        passed: true,
+        stderr: '',
+        stdout: 'ok',
+      },
+    ],
+    objectivePassed: true,
+    overallPassed: true,
+    startedAt: '2026-03-19T00:00:00.000Z',
+    status: {
+      compactionsUsed: 0,
+      stepsUsed: 2,
+      stopReason: 'completed',
+    },
+  };
 }

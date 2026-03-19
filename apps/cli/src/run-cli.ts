@@ -4,13 +4,14 @@ import { resolve } from 'node:path';
 import {
   AgentSession,
   OpenAIResponsesClient,
-  type ToolCall,
-  createShellTool,
   type AgentEvent,
   type AgentRunResult,
+  type ToolCall,
 } from '@bond/agent-core';
+import { createLocalToolset } from '@bond/tool-registry';
 
-import { createCliConfig, type CliConfig } from './config.ts';
+import { createCliConfig, createEvalCliConfig, type CliConfig } from './config.ts';
+import { runEvalCommand, type EvalCommandDependencies } from './eval-command.ts';
 import { parseArgs } from './args.ts';
 
 type ReadableStream = NodeJS.ReadStream;
@@ -30,6 +31,7 @@ interface CliDependencies {
   createSession?: (options: SessionFactoryOptions) => AgentSessionLike;
   cwd?: string;
   env?: Record<string, string | undefined>;
+  evalCommand?: EvalCommandDependencies;
   stderr?: Pick<WritableStream, 'write'>;
   stdin?: ReadableStream;
   stdout?: Pick<WritableStream, 'write'>;
@@ -58,6 +60,10 @@ export async function runCli(argv: string[], dependencies: CliDependencies = {})
     if (args.help) {
       context.stdout.write(`${buildHelpText()}\n`);
       return 0;
+    }
+
+    if (args.mode === 'eval') {
+      return await runEval(context, args, dependencies);
     }
 
     const session = createSession(args, dependencies);
@@ -105,6 +111,8 @@ function buildHelpText(): string {
     '',
     'Usage:',
     '  bun run cli -- "inspect the repo"',
+    '  bun run cli -- eval --manifest evals.json --case prompt-quality',
+    '  bun run cli -- eval --manifest evals.json --all',
     '  bun run cli -- --model gpt-4.1-mini "list the files"',
     '  bun run cli -- --cwd packages/agent-core',
     '',
@@ -117,6 +125,19 @@ function buildHelpText(): string {
     '                       Auto-compact once the request exceeds the estimated token limit',
     '  --timeout <ms>       Shell tool timeout in milliseconds',
     '  --cwd <path>         Working directory for the session',
+    '  --manifest <path>    Eval manifest path for `eval` mode',
+    '  --case <id>          Run one eval case',
+    '  --all                Run all eval cases in the manifest',
+    '  --output <path>      Output JSON report path, or directory when combined with --all',
+    '  --judge-model <name> Override all judge models',
+    '  --judge-model-architecture <name>',
+    '                       Override the architecture critic model',
+    '  --judge-model-correctness <name>',
+    '                       Override the correctness critic model',
+    '  --judge-model-simplicity <name>',
+    '                       Override the simplicity critic model',
+    '  --judge-model-goal <name>',
+    '                       Override the goal critic model',
     '  -h, --help           Show this help text',
     '',
     'Environment:',
@@ -126,6 +147,16 @@ function buildHelpText(): string {
     '  OPENAI_MODEL         Required unless --model is passed',
     '  OPENAI_COMPACTION_MODEL',
     '                       Optional model override for compaction turns',
+    '  OPENAI_JUDGE_MODEL',
+    '                       Optional shared model override for all eval judges',
+    '  OPENAI_JUDGE_MODEL_ARCHITECTURE',
+    '                       Optional model override for the architecture critic',
+    '  OPENAI_JUDGE_MODEL_CORRECTNESS',
+    '                       Optional model override for the correctness critic',
+    '  OPENAI_JUDGE_MODEL_SIMPLICITY',
+    '                       Optional model override for the simplicity critic',
+    '  OPENAI_JUDGE_MODEL_GOAL',
+    '                       Optional model override for the goal critic',
     '  OPENAI_BASE_URL      Optional override for Responses API-compatible APIs',
   ].join('\n');
 }
@@ -180,6 +211,18 @@ function createSession(
   return createDefaultSession(createCliConfig(args, runtimeEnv, cwd));
 }
 
+async function runEval(
+  context: CliContext,
+  args: ReturnType<typeof parseArgs>,
+  dependencies: CliDependencies,
+): Promise<number> {
+  const runtimeEnv = dependencies.env ?? process.env;
+  const cwd = resolve(args.cwd ?? dependencies.cwd ?? process.cwd());
+  const config = createEvalCliConfig(args, runtimeEnv, cwd);
+
+  return await runEvalCommand(config, context, dependencies.evalCommand);
+}
+
 function createDefaultSession(config: CliConfig): AgentSessionLike {
   const client = new OpenAIResponsesClient({ apiKey: config.apiKey, baseUrl: config.baseUrl });
 
@@ -192,7 +235,7 @@ function createDefaultSession(config: CliConfig): AgentSessionLike {
     maxSteps: config.maxSteps,
     model: config.model,
     shell: config.shell,
-    tools: [createShellTool()],
+    tools: createLocalToolset(),
   });
 }
 

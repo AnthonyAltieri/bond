@@ -10,6 +10,11 @@ export function readCliEnv(runtimeEnv: Record<string, string | undefined>) {
       OPENAI_AUTO_COMPACT_TOKENS: z.coerce.number().int().positive().optional(),
       OPENAI_BASE_URL: z.string().url().optional(),
       OPENAI_COMPACTION_MODEL: z.string().min(1).optional(),
+      OPENAI_JUDGE_MODEL: z.string().min(1).optional(),
+      OPENAI_JUDGE_MODEL_ARCHITECTURE: z.string().min(1).optional(),
+      OPENAI_JUDGE_MODEL_CORRECTNESS: z.string().min(1).optional(),
+      OPENAI_JUDGE_MODEL_GOAL: z.string().min(1).optional(),
+      OPENAI_JUDGE_MODEL_SIMPLICITY: z.string().min(1).optional(),
       OPENAI_MODEL: z.string().min(1).optional(),
     },
   });

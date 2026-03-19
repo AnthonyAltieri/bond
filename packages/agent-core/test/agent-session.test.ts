@@ -1,16 +1,18 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 
 import {
   AgentSession,
   buildPromptScaffold,
-  createShellTool,
+  buildSystemPrompt,
+  DEFAULT_SYSTEM_PROMPT,
   type ModelClient,
   type ModelTurnEvent,
   type ModelTurnParams,
   type ModelTurnResult,
   type ResponseInputItem,
 } from '@bond/agent-core';
+import { createShellTool } from '@bond/tool-shell';
 
 describe('AgentSession', () => {
   test('runs a tool call and appends function call output', async () => {
@@ -177,28 +179,44 @@ describe('buildPromptScaffold', () => {
     const tempRoot = await mkdtemp(`${process.cwd()}/tmp-agent-core-`);
     const nestedDirectory = `${tempRoot}/nested`;
 
-    await writeFile(`${tempRoot}/.git`, '');
-    await writeFile(`${tempRoot}/AGENTS.md`, 'Root instructions');
-    await writeFile(`${nestedDirectory}/AGENTS.override.md`, 'Nested instructions');
+    try {
+      await writeFile(`${tempRoot}/.git`, '');
+      await writeFile(`${tempRoot}/AGENTS.md`, 'Root instructions');
+      await writeFile(`${nestedDirectory}/AGENTS.override.md`, 'Nested instructions');
 
-    const items = buildPromptScaffold({ cwd: nestedDirectory, shell: 'zsh' });
+      const items = buildPromptScaffold({ cwd: nestedDirectory, shell: 'zsh' });
 
-    expect(items).toHaveLength(3);
-    expect(items[1]).toEqual({
-      content: [{ text: expect.stringContaining('Root instructions'), type: 'input_text' }],
-      role: 'developer',
-      type: 'message',
-    });
-    expect(items[1]).toEqual({
-      content: [{ text: expect.stringContaining('Nested instructions'), type: 'input_text' }],
-      role: 'developer',
-      type: 'message',
-    });
-    expect(items[2]).toEqual({
-      content: [{ text: expect.stringContaining('<shell>zsh</shell>'), type: 'input_text' }],
-      role: 'user',
-      type: 'message',
-    });
+      expect(items).toHaveLength(3);
+      expect(items[1]).toEqual({
+        content: [{ text: expect.stringContaining('Root instructions'), type: 'input_text' }],
+        role: 'developer',
+        type: 'message',
+      });
+      expect(items[1]).toEqual({
+        content: [{ text: expect.stringContaining('Nested instructions'), type: 'input_text' }],
+        role: 'developer',
+        type: 'message',
+      });
+      expect(items[2]).toEqual({
+        content: [{ text: expect.stringContaining('<shell>zsh</shell>'), type: 'input_text' }],
+        role: 'user',
+        type: 'message',
+      });
+    } finally {
+      await rm(tempRoot, { force: true, recursive: true });
+    }
+  });
+});
+
+describe('buildSystemPrompt', () => {
+  test('builds a stable sectioned system prompt', () => {
+    const prompt = buildSystemPrompt();
+
+    expect(prompt).toContain('[Role]');
+    expect(prompt).toContain('[Execution Workflow]');
+    expect(prompt).toContain('[Verification]');
+    expect(prompt).toContain('Verify any meaningful behavior change before you stop.');
+    expect(prompt).toBe(DEFAULT_SYSTEM_PROMPT);
   });
 });
 

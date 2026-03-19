@@ -1,5 +1,5 @@
 {
-  "name": "@bond/agent-core",
+  "name": "@bond/tool-shell",
   "private": true,
   "type": "module",
   "exports": {
@@ -10,10 +10,6 @@
     "lint": "bunx oxlint src test"
   },
   "dependencies": {
-    "@bond/tool-runtime": "workspace:*",
-    "zod": "^4.3.6"
-  },
-  "devDependencies": {
-    "@bond/tool-shell": "workspace:*"
+    "@bond/tool-runtime": "workspace:*"
   }
 }

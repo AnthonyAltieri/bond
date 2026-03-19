@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { createShellTool } from '@bond/agent-core';
+import { createShellTool } from '@bond/tool-shell';
 
 describe('createShellTool', () => {
   const tool = createShellTool();

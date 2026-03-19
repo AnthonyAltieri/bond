@@ -1,5 +1,5 @@
 {
-  "name": "@bond/agent-core",
+  "name": "@bond/tool-registry",
   "private": true,
   "type": "module",
   "exports": {
@@ -11,9 +11,6 @@
   },
   "dependencies": {
     "@bond/tool-runtime": "workspace:*",
-    "zod": "^4.3.6"
-  },
-  "devDependencies": {
     "@bond/tool-shell": "workspace:*"
   }
 }
