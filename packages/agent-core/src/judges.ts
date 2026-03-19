@@ -181,11 +181,11 @@ export function aggregateJudgeResults(results: JudgeRunResult[]): JudgeEnsembleR
     correctnessCritic !== undefined && correctnessCritic.score <= 2;
   const thresholdFailures = results.filter((result) => result.score < result.passThreshold);
   const explicitFailures = results.filter((result) => !result.pass);
-  const blockingIssues = [
+  const blockingIssues = dedupeJudgeIssues([
     ...(goalCriticFailed ? goalCritic?.issues ?? [] : []),
     ...(correctnessCriticFailed ? correctnessCritic?.issues ?? [] : []),
     ...collectBlockingIssues(results),
-  ];
+  ]);
   const passed =
     !goalCriticFailed &&
     !correctnessCriticFailed &&
@@ -240,6 +240,21 @@ function collectBlockingIssues(results: JudgeRunResult[]): JudgeIssue[] {
   return results.flatMap((result) =>
     result.issues.filter((issue) => issue.severity === 'high' || result.score < result.passThreshold),
   );
+}
+
+function dedupeJudgeIssues(issues: JudgeIssue[]): JudgeIssue[] {
+  const seen = new Set<string>();
+
+  return issues.filter((issue) => {
+    const key = JSON.stringify([issue.severity, issue.message, issue.evidence]);
+
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
 }
 
 function formatChangedFiles(changedFiles: ChangedFileArtifact[]): string[] {

@@ -174,6 +174,7 @@ export async function runEvalCase(
         runObjectiveCheck(check, {
           cwd: baseWorkspace,
           shell,
+          timeoutMs: normalizedEntry.commandTimeoutMs ?? options.commandTimeoutMs,
         }),
       ),
     );
@@ -337,6 +338,7 @@ async function runObjectiveCheck(
   options: {
     cwd: string;
     shell: string;
+    timeoutMs?: number;
   },
 ): Promise<EvalObjectiveCheckResult> {
   const child = Bun.spawn([options.shell, '-lc', check.command], {
@@ -344,12 +346,24 @@ async function runObjectiveCheck(
     stderr: 'pipe',
     stdout: 'pipe',
   });
+  let timedOut = false;
+  const timer =
+    typeof options.timeoutMs === 'number' && options.timeoutMs > 0
+      ? setTimeout(() => {
+          timedOut = true;
+          child.kill();
+        }, options.timeoutMs)
+      : undefined;
   const [exitCode, stdout, stderr] = await Promise.all([
     child.exited,
     new Response(child.stdout).text(),
     new Response(child.stderr).text(),
   ]);
+  if (timer) {
+    clearTimeout(timer);
+  }
   const passed =
+    !timedOut &&
     exitCode === check.expectExitCode &&
     check.stdoutIncludes.every((needle) => stdout.includes(needle)) &&
     check.stderrIncludes.every((needle) => stderr.includes(needle));
@@ -357,7 +371,9 @@ async function runObjectiveCheck(
   return {
     category: check.category,
     command: check.command,
-    details: `exit=${exitCode} expected=${check.expectExitCode}`,
+    details: timedOut
+      ? `timed_out after=${options.timeoutMs}ms exit=${exitCode} expected=${check.expectExitCode}`
+      : `exit=${exitCode} expected=${check.expectExitCode}`,
     exitCode,
     name: check.name,
     passed,

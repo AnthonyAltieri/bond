@@ -38,6 +38,67 @@ describe('judge utilities', () => {
     expect(result.compositeScore).toBe(3.8);
     expect(result.blockingIssues.length).toBeGreaterThan(0);
   });
+
+  test('deduplicates blocking issues reported through multiple failure paths', () => {
+    const repeatedIssue = {
+      evidence: ['objective check failed'],
+      message: 'Did not satisfy the requested behavior.',
+      severity: 'high' as const,
+    };
+
+    const result = aggregateJudgeResults([
+      {
+        confidence: 'high',
+        id: ARCHITECTURE_CRITIC.id,
+        issues: [],
+        label: ARCHITECTURE_CRITIC.label,
+        pass: true,
+        passThreshold: ARCHITECTURE_CRITIC.passThreshold,
+        score: 4,
+        strengths: ['Modular'],
+        summary: 'Acceptable.',
+        weight: ARCHITECTURE_CRITIC.weight,
+      },
+      {
+        confidence: 'high',
+        id: SIMPLICITY_CRITIC.id,
+        issues: [],
+        label: SIMPLICITY_CRITIC.label,
+        pass: true,
+        passThreshold: SIMPLICITY_CRITIC.passThreshold,
+        score: 4,
+        strengths: ['Small'],
+        summary: 'Acceptable.',
+        weight: SIMPLICITY_CRITIC.weight,
+      },
+      {
+        confidence: 'high',
+        id: GOAL_CRITIC.id,
+        issues: [repeatedIssue],
+        label: GOAL_CRITIC.label,
+        pass: false,
+        passThreshold: GOAL_CRITIC.passThreshold,
+        score: 2,
+        strengths: [],
+        summary: 'Not acceptable.',
+        weight: GOAL_CRITIC.weight,
+      },
+      {
+        confidence: 'high',
+        id: CORRECTNESS_CRITIC.id,
+        issues: [],
+        label: CORRECTNESS_CRITIC.label,
+        pass: true,
+        passThreshold: CORRECTNESS_CRITIC.passThreshold,
+        score: 4,
+        strengths: ['Verified'],
+        summary: 'Acceptable.',
+        weight: CORRECTNESS_CRITIC.weight,
+      },
+    ]);
+
+    expect(result.blockingIssues).toEqual([repeatedIssue]);
+  });
 });
 
 describe('runJudgeEnsemble', () => {

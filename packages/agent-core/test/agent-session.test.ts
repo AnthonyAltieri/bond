@@ -5,6 +5,7 @@ import {
   AgentSession,
   buildPromptScaffold,
   buildSystemPrompt,
+  createShellTool,
   DEFAULT_SYSTEM_PROMPT,
   type ModelClient,
   type ModelTurnEvent,
@@ -12,7 +13,6 @@ import {
   type ModelTurnResult,
   type ResponseInputItem,
 } from '@bond/agent-core';
-import { createShellTool } from '@bond/tool-shell';
 
 describe('AgentSession', () => {
   test('runs a tool call and appends function call output', async () => {

@@ -64,7 +64,8 @@ export function createEvalCliConfig(
   cwd: string,
 ): EvalCliConfig {
   const env = readCliEnv(runtimeEnv);
-  const sharedJudgeModel = args.judgeModel ?? env.OPENAI_JUDGE_MODEL;
+  const resolvedModel = args.model ?? env.OPENAI_MODEL;
+  const sharedJudgeModel = args.judgeModel ?? env.OPENAI_JUDGE_MODEL ?? resolvedModel;
 
   return EvalCliConfigSchema.parse({
     apiKey: env.OPENAI_API_KEY,
@@ -85,7 +86,7 @@ export function createEvalCliConfig(
         args.judgeModelSimplicity ?? env.OPENAI_JUDGE_MODEL_SIMPLICITY ?? sharedJudgeModel,
     },
     manifestPath: args.manifestPath,
-    model: args.model ?? env.OPENAI_MODEL,
+    model: resolvedModel,
     outputPath: args.outputPath,
     runAll: args.runAll,
     selectedCaseId: args.caseId,

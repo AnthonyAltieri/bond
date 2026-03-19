@@ -54,6 +54,7 @@ export {
 export { OpenAIJudgeProvider } from './openai-judge-provider.ts';
 export { OpenAIResponsesClient } from './responses-client.ts';
 export { buildSystemPrompt, DEFAULT_SYSTEM_PROMPT } from './system-prompt.ts';
+export { createShellTool } from '@bond/tool-shell';
 export type {
   AgentEvent,
   AgentRunResult,

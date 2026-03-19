@@ -142,6 +142,49 @@ describe('eval runner', () => {
       await rm(tempRoot, { force: true, recursive: true });
     }
   });
+
+  test('fails an objective check that exceeds the configured timeout', async () => {
+    const tempRoot = await createTempDir(`${process.cwd()}/tmp-eval-timeout-`);
+
+    try {
+      const report = await runEvalCase(
+        {
+          commandTimeoutMs: 10,
+          description: 'Times out a hanging objective check',
+          id: 'timeout-case',
+          objectiveChecks: [
+            {
+              category: 'runtime',
+              command: 'sleep 1',
+              name: 'slow check',
+            },
+          ],
+          prompt: 'Return ok',
+          workingDirectoryMode: 'repo',
+        },
+        {
+          client: new ScriptedModelClient('ok'),
+          judgeModels: {
+            architecture: 'judge-arch',
+            correctness: 'judge-correct',
+            goal: 'judge-goal',
+            simplicity: 'judge-simple',
+          },
+          judgeProvider: new FakeJudgeProvider(),
+          model: 'agent-model',
+          repoRoot: tempRoot,
+          tools: [],
+        },
+      );
+
+      expect(report.objectivePassed).toBe(false);
+      expect(report.objectiveChecks).toHaveLength(1);
+      expect(report.objectiveChecks[0]?.passed).toBe(false);
+      expect(report.objectiveChecks[0]?.details).toContain('timed_out');
+    } finally {
+      await rm(tempRoot, { force: true, recursive: true });
+    }
+  });
 });
 
 class FakeJudgeProvider implements JudgeProvider {

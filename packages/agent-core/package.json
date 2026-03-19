@@ -10,10 +10,8 @@
     "lint": "bunx oxlint src test"
   },
   "dependencies": {
+    "@bond/tool-shell": "workspace:*",
     "@bond/tool-runtime": "workspace:*",
     "zod": "^4.3.6"
-  },
-  "devDependencies": {
-    "@bond/tool-shell": "workspace:*"
   }
 }
