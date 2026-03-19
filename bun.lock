@@ -20,6 +20,9 @@
     },
     "packages/agent-core": {
       "name": "@bond/agent-core",
+      "dependencies": {
+        "zod": "^4.3.6",
+      },
     },
   },
   "packages": {

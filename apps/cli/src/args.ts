@@ -1,4 +1,6 @@
 export interface CliArgs {
+  autoCompactTokens?: number;
+  compactionModel?: string;
   cwd?: string;
   help: boolean;
   maxSteps?: number;
@@ -23,8 +25,16 @@ export function parseArgs(argv: string[]): CliArgs {
         args.model = requireValue(argv, index, token);
         index += 1;
         break;
+      case '--compaction-model':
+        args.compactionModel = requireValue(argv, index, token);
+        index += 1;
+        break;
       case '--max-steps':
         args.maxSteps = parseInteger(requireValue(argv, index, token), token);
+        index += 1;
+        break;
+      case '--auto-compact-tokens':
+        args.autoCompactTokens = parseInteger(requireValue(argv, index, token), token);
         index += 1;
         break;
       case '--timeout':

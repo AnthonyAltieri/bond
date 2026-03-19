@@ -8,6 +8,7 @@ describe('createShellTool', () => {
     callId: 'call_1',
     cwd: process.cwd(),
     defaultTimeoutMs: 250,
+    shell: '/bin/sh',
     workspaceRoot: process.cwd(),
   };
 
@@ -26,5 +27,15 @@ describe('createShellTool', () => {
   test('marks timed out commands', async () => {
     const result = await tool.execute('{"command":"sleep 1","timeoutMs":10}', baseContext);
     expect(result.content).toContain('"timedOut": true');
+  });
+
+  test('uses the configured shell executable', async () => {
+    const result = await tool.execute('{"command":"setopt NULL_GLOB; printf ok"}', {
+      ...baseContext,
+      shell: '/bin/zsh',
+    });
+
+    expect(result.content).toContain('"stdout": "ok"');
+    expect(result.content).toContain('"exitCode": 0');
   });
 });

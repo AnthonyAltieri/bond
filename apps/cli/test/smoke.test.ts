@@ -65,8 +65,9 @@ function makeSmokeSession(prompts: string[]) {
       yield { chunk: `done:${prompt}`, kind: 'text-delta' };
 
       const result = {
+        compactionsUsed: 0,
         finalText: `done:${prompt}`,
-        messages: [],
+        inputItems: [],
         stepsUsed: 1,
         stopReason: 'completed',
       };
