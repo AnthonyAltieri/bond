@@ -13,6 +13,8 @@
 - `packages/tool-runtime`: shared tool contracts used by the harness and tool packages
 - `packages/tool-shell`: shell execution, stdout/stderr streaming, result summary
 - `packages/tool-registry`: default local toolset assembly for the CLI
+- `program.md` + `autoresearch.json`: self-improvement strategy and scoring contract for Bond autoresearch
+- `.autoresearch/`: untracked autoresearch run artifacts and experiment ledgers
 
 ## Requirements
 
@@ -64,6 +66,14 @@ bun run cli -- eval --manifest evals/demo.json --case demo
 bun run cli -- eval --manifest evals/demo.json --all
 ```
 
+Autoresearch mode:
+
+```sh
+bun run cli -- autoresearch --manifest autoresearch.json --program program.md
+```
+
+By default, autoresearch writes untracked artifacts under `.autoresearch/<tag>/`.
+
 ## Example
 
 ```text
@@ -89,6 +99,7 @@ Included in v1:
 - stateless Responses API requests with in-memory conversation state
 - one-shot and interactive modes
 - eval runner mode with JSON manifests, objective shell checks, judge summaries, and JSON reports
+- bounded autoresearch mode for Bond self-improvement with runner-side web research, keep/discard branching, and untracked run artifacts
 - bounded tool/model loop with automatic compaction
 - explicit local tool packages with one `shell` tool
 

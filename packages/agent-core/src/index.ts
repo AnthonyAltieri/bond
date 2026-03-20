@@ -9,6 +9,26 @@ export {
 export { createAsyncQueue } from './async-queue.ts';
 export { buildPromptScaffold } from './prompt-scaffold.ts';
 export {
+  parseAutoresearchManifest,
+  runAutoresearch,
+  type AutoresearchBondEvalSource,
+  type AutoresearchDependencies,
+  type AutoresearchEvaluationSource,
+  type AutoresearchExperimentRecord,
+  type AutoresearchGitOps,
+  type AutoresearchManifest,
+  type AutoresearchMetricValue,
+  type AutoresearchProgressEvent,
+  type AutoresearchRankCriterion,
+  type AutoresearchRunOptions,
+  type AutoresearchRunResult,
+  type AutoresearchShellSource,
+  type AutoresearchSourceResult,
+  type WebResearchRequest,
+  type WebResearchResult,
+  type WebResearcher,
+} from './autoresearch-runner.ts';
+export {
   formatEvalReportSummary,
   parseEvalManifest,
   runEvalCase,
@@ -53,6 +73,7 @@ export {
 } from './judges.ts';
 export { OpenAIJudgeProvider } from './openai-judge-provider.ts';
 export { OpenAIResponsesClient } from './responses-client.ts';
+export { OpenAIWebResearcher } from './openai-web-researcher.ts';
 export { buildSystemPrompt, DEFAULT_SYSTEM_PROMPT } from './system-prompt.ts';
 export { createShellTool } from '@bond/tool-shell';
 export type {

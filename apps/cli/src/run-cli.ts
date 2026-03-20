@@ -10,7 +10,16 @@ import {
 } from '@bond/agent-core';
 import { createLocalToolset } from '@bond/tool-registry';
 
-import { createCliConfig, createEvalCliConfig, type CliConfig } from './config.ts';
+import {
+  createAutoresearchCliConfig,
+  createCliConfig,
+  createEvalCliConfig,
+  type CliConfig,
+} from './config.ts';
+import {
+  runAutoresearchCommand,
+  type AutoresearchCommandDependencies,
+} from './autoresearch-command.ts';
 import { runEvalCommand, type EvalCommandDependencies } from './eval-command.ts';
 import { parseArgs } from './args.ts';
 
@@ -28,6 +37,7 @@ interface CliContext {
 }
 
 interface CliDependencies {
+  autoresearchCommand?: AutoresearchCommandDependencies;
   createSession?: (options: SessionFactoryOptions) => AgentSessionLike;
   cwd?: string;
   env?: Record<string, string | undefined>;
@@ -64,6 +74,10 @@ export async function runCli(argv: string[], dependencies: CliDependencies = {})
 
     if (args.mode === 'eval') {
       return await runEval(context, args, dependencies);
+    }
+
+    if (args.mode === 'autoresearch') {
+      return await runAutoresearch(context, args, dependencies);
     }
 
     const session = createSession(args, dependencies);
@@ -113,6 +127,7 @@ function buildHelpText(): string {
     '  bun run cli -- "inspect the repo"',
     '  bun run cli -- eval --manifest evals.json --case prompt-quality',
     '  bun run cli -- eval --manifest evals.json --all',
+    '  bun run cli -- autoresearch --manifest autoresearch.json --program program.md',
     '  bun run cli -- --model gpt-4.1-mini "list the files"',
     '  bun run cli -- --cwd packages/agent-core',
     '',
@@ -126,9 +141,16 @@ function buildHelpText(): string {
     '  --timeout <ms>       Shell tool timeout in milliseconds',
     '  --cwd <path>         Working directory for the session',
     '  --manifest <path>    Eval manifest path for `eval` mode',
+    '  --program <path>     Research strategy file for `autoresearch` mode',
     '  --case <id>          Run one eval case',
     '  --all                Run all eval cases in the manifest',
+    '  --max-experiments <n>',
+    '                       Max experiments for `autoresearch` mode',
+    '  --forever            Keep running autoresearch until interrupted',
     '  --output <path>      Output JSON report path, or directory when combined with --all',
+    '                       Defaults to .autoresearch/<tag> for autoresearch runs',
+    '  --resume             Resume an existing autoresearch run',
+    '  --tag <value>        Override the autoresearch branch/run tag',
     '  --judge-model <name> Override all judge models',
     '  --judge-model-architecture <name>',
     '                       Override the architecture critic model',
@@ -221,6 +243,18 @@ async function runEval(
   const config = createEvalCliConfig(args, runtimeEnv, cwd);
 
   return await runEvalCommand(config, context, dependencies.evalCommand);
+}
+
+async function runAutoresearch(
+  context: CliContext,
+  args: ReturnType<typeof parseArgs>,
+  dependencies: CliDependencies,
+): Promise<number> {
+  const runtimeEnv = dependencies.env ?? process.env;
+  const cwd = resolve(args.cwd ?? dependencies.cwd ?? process.cwd());
+  const config = createAutoresearchCliConfig(args, runtimeEnv, cwd);
+
+  return await runAutoresearchCommand(config, context, dependencies.autoresearchCommand);
 }
 
 function createDefaultSession(config: CliConfig): AgentSessionLike {

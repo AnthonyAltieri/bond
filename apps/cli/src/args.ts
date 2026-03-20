@@ -3,6 +3,7 @@ export interface CliArgs {
   caseId?: string;
   compactionModel?: string;
   cwd?: string;
+  forever: boolean;
   help: boolean;
   judgeModel?: string;
   judgeModelArchitecture?: string;
@@ -10,24 +11,33 @@ export interface CliArgs {
   judgeModelGoal?: string;
   judgeModelSimplicity?: string;
   manifestPath?: string;
+  maxExperiments?: number;
   maxSteps?: number;
   model?: string;
-  mode: 'chat' | 'eval';
+  mode: 'autoresearch' | 'chat' | 'eval';
   outputPath?: string;
+  programPath?: string;
   prompt?: string;
+  resume: boolean;
   runAll: boolean;
+  tag?: string;
   timeoutMs?: number;
 }
 
 export function parseArgs(argv: string[]): CliArgs {
   const promptParts: string[] = [];
-  const args: CliArgs = { help: false, mode: 'chat', runAll: false };
+  const args: CliArgs = { forever: false, help: false, mode: 'chat', resume: false, runAll: false };
 
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
 
     if (index === 0 && token === 'eval') {
       args.mode = 'eval';
+      continue;
+    }
+
+    if (index === 0 && token === 'autoresearch') {
+      args.mode = 'autoresearch';
       continue;
     }
 
@@ -64,6 +74,10 @@ export function parseArgs(argv: string[]): CliArgs {
         args.manifestPath = requireValue(argv, index, token);
         index += 1;
         break;
+      case '--program':
+        args.programPath = requireValue(argv, index, token);
+        index += 1;
+        break;
       case '--case':
         args.caseId = requireValue(argv, index, token);
         index += 1;
@@ -71,8 +85,22 @@ export function parseArgs(argv: string[]): CliArgs {
       case '--all':
         args.runAll = true;
         break;
+      case '--forever':
+        args.forever = true;
+        break;
+      case '--resume':
+        args.resume = true;
+        break;
       case '--output':
         args.outputPath = requireValue(argv, index, token);
+        index += 1;
+        break;
+      case '--max-experiments':
+        args.maxExperiments = parseInteger(requireValue(argv, index, token), token);
+        index += 1;
+        break;
+      case '--tag':
+        args.tag = requireValue(argv, index, token);
         index += 1;
         break;
       case '--judge-model':

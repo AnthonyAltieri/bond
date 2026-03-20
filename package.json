@@ -8,6 +8,7 @@
   "scripts": {
     "cli": "bun run apps/cli/src/index.ts",
     "dev": "bun run cli",
+    "autoresearch": "bun run cli -- autoresearch --manifest autoresearch.json --program program.md",
     "test": "bun test",
     "lint": "bunx oxlint .",
     "lint:fix": "bunx oxlint --fix .",

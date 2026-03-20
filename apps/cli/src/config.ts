@@ -38,6 +38,31 @@ const EvalCliConfigSchema = z.object({
 
 export type EvalCliConfig = z.infer<typeof EvalCliConfigSchema>;
 
+const AutoresearchCliConfigSchema = z.object({
+  apiKey: z.string().min(1),
+  baseUrl: z.string().url().optional(),
+  commandTimeoutMs: z.number().int().positive().optional(),
+  compactionModel: z.string().min(1).optional(),
+  cwd: z.string().min(1),
+  forever: z.boolean(),
+  judgeModels: z.object({
+    architecture: z.string().min(1),
+    correctness: z.string().min(1),
+    goal: z.string().min(1),
+    simplicity: z.string().min(1),
+  }),
+  manifestPath: z.string().min(1),
+  maxExperiments: z.number().int().positive(),
+  model: z.string().min(1, 'OPENAI_MODEL or --model is required'),
+  outputPath: z.string().min(1).optional(),
+  programPath: z.string().min(1),
+  resume: z.boolean(),
+  shell: z.string().min(1),
+  tag: z.string().min(1),
+});
+
+export type AutoresearchCliConfig = z.infer<typeof AutoresearchCliConfigSchema>;
+
 export function createCliConfig(
   args: CliArgs,
   runtimeEnv: Record<string, string | undefined>,
@@ -92,4 +117,51 @@ export function createEvalCliConfig(
     selectedCaseId: args.caseId,
     shell: runtimeEnv.SHELL ?? 'sh',
   });
+}
+
+export function createAutoresearchCliConfig(
+  args: CliArgs,
+  runtimeEnv: Record<string, string | undefined>,
+  cwd: string,
+): AutoresearchCliConfig {
+  const env = readCliEnv(runtimeEnv);
+  const resolvedModel = args.model ?? env.OPENAI_MODEL;
+  const sharedJudgeModel = args.judgeModel ?? env.OPENAI_JUDGE_MODEL ?? resolvedModel;
+
+  return AutoresearchCliConfigSchema.parse({
+    apiKey: env.OPENAI_API_KEY,
+    baseUrl: env.OPENAI_BASE_URL,
+    commandTimeoutMs: args.timeoutMs,
+    compactionModel: args.compactionModel ?? env.OPENAI_COMPACTION_MODEL,
+    cwd,
+    forever: args.forever,
+    judgeModels: {
+      architecture:
+        args.judgeModelArchitecture ??
+        env.OPENAI_JUDGE_MODEL_ARCHITECTURE ??
+        sharedJudgeModel,
+      correctness:
+        args.judgeModelCorrectness ??
+        env.OPENAI_JUDGE_MODEL_CORRECTNESS ??
+        sharedJudgeModel,
+      goal: args.judgeModelGoal ?? env.OPENAI_JUDGE_MODEL_GOAL ?? sharedJudgeModel,
+      simplicity:
+        args.judgeModelSimplicity ?? env.OPENAI_JUDGE_MODEL_SIMPLICITY ?? sharedJudgeModel,
+    },
+    manifestPath: args.manifestPath,
+    maxExperiments: args.maxExperiments ?? 10,
+    model: resolvedModel,
+    outputPath: args.outputPath,
+    programPath: args.programPath ?? 'program.md',
+    resume: args.resume,
+    shell: runtimeEnv.SHELL ?? 'sh',
+    tag: args.tag ?? defaultTag(),
+  });
+}
+
+function defaultTag(now: Date = new Date()): string {
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}${month}${day}`;
 }
