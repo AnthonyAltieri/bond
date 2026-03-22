@@ -8,74 +8,11 @@ export {
 } from './conversation-state.ts';
 export { createAsyncQueue } from './async-queue.ts';
 export { buildPromptScaffold } from './prompt-scaffold.ts';
-export {
-  parseAutoresearchManifest,
-  runAutoresearch,
-  type AutoresearchBondEvalSource,
-  type AutoresearchDependencies,
-  type AutoresearchEvaluationSource,
-  type AutoresearchExperimentRecord,
-  type AutoresearchGitOps,
-  type AutoresearchManifest,
-  type AutoresearchMetricValue,
-  type AutoresearchProgressEvent,
-  type AutoresearchRankCriterion,
-  type AutoresearchRunOptions,
-  type AutoresearchRunResult,
-  type AutoresearchShellSource,
-  type AutoresearchSourceResult,
-  type WebResearchRequest,
-  type WebResearchResult,
-  type WebResearcher,
-} from './autoresearch-runner.ts';
-export {
-  formatEvalReportSummary,
-  parseEvalManifest,
-  runEvalCase,
-  runEvalManifest,
-  writeEvalReport,
-  type EvalCase,
-  type EvalFinalResponseMatcher,
-  type EvalJudgeModels,
-  type EvalManifest,
-  type EvalObjectiveCheckResult,
-  type EvalObjectiveCheckSpec,
-  type EvalRunReport,
-  type RunEvalCaseOptions,
-  type RunEvalManifestOptions,
-} from './eval-runner.ts';
-export { runJudgeEnsemble, type JudgeModelConfig, type JudgeProvider, type JudgeProviderRequest } from './judge-runner.ts';
-export {
-  aggregateJudgeResults,
-  ARCHITECTURE_CRITIC,
-  CORRECTNESS_CRITIC,
-  createJudgeInstructions,
-  DEFAULT_JUDGE_SPECS,
-  formatJudgeInput,
-  GOAL_CRITIC,
-  objectiveCheckCategorySchema,
-  judgeConfidenceSchema,
-  judgeIssueSchema,
-  judgeIssueSeveritySchema,
-  judgeResultSchema,
-  SIMPLICITY_CRITIC,
-  type ChangedFileArtifact,
-  type JudgeConfidence,
-  type JudgeEnsembleResult,
-  type JudgeInput,
-  type JudgeIssue,
-  type JudgeIssueSeverity,
-  type JudgeResponse,
-  type JudgeRunResult,
-  type JudgeSpec,
-  type ObjectiveCheckArtifact,
-  type ObjectiveCheckCategory,
-} from './judges.ts';
-export { OpenAIJudgeProvider } from './openai-judge-provider.ts';
+export { buildPrompt } from './prompt-scaffold/builder.ts';
 export { OpenAIResponsesClient } from './responses-client.ts';
-export { OpenAIWebResearcher } from './openai-web-researcher.ts';
 export { buildSystemPrompt, DEFAULT_SYSTEM_PROMPT } from './system-prompt.ts';
-export { createShellTool } from '@bond/tool-shell';
+export type { PromptScaffoldError } from './prompt-scaffold/errors.ts';
+export type { PromptSectionContext } from './prompt-scaffold/types.ts';
 export type {
   AgentEvent,
   AgentRunResult,

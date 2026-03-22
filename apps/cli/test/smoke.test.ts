@@ -1,12 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { PassThrough } from 'node:stream';
 
-import type {
-  AgentEvent,
-  AgentRunResult,
-  EvalRunReport,
-  ToolExecutionResult,
-} from '@bond/agent-core';
+import type { AgentEvent, AgentRunResult, ToolExecutionResult } from '@bond/agent-core';
+import type { EvalRunReport } from '@bond/evals';
 
 import { runCli } from '../src/run-cli.ts';
 
@@ -91,10 +87,7 @@ describe('cli smoke', () => {
     expect(stdout.text()).toContain('correctness=4');
     expect(stdout.text()).toContain('report=/workspace/reports/demo.json');
     expect(writtenReports).toEqual([
-      {
-        path: '/workspace/reports/demo.json',
-        report: makeEvalReport(),
-      },
+      { path: '/workspace/reports/demo.json', report: makeEvalReport() },
     ]);
     expect(stderr.text()).toBe('');
   });
@@ -105,10 +98,7 @@ describe('cli smoke', () => {
 
     const exitCode = await runCli(['eval', '--manifest', 'evals/demo.json', '--all'], {
       cwd: '/workspace',
-      env: {
-        OPENAI_API_KEY: 'test-key',
-        OPENAI_MODEL: 'agent-model',
-      },
+      env: { OPENAI_API_KEY: 'test-key', OPENAI_MODEL: 'agent-model' },
       evalCommand: {
         loadManifest: async () =>
           JSON.stringify({
@@ -160,18 +150,13 @@ describe('cli smoke', () => {
       ],
       {
         cwd: '/workspace',
-        env: {
-          OPENAI_API_KEY: 'test-key',
-          OPENAI_MODEL: 'agent-model',
-        },
+        env: { OPENAI_API_KEY: 'test-key', OPENAI_MODEL: 'agent-model' },
         autoresearchCommand: {
           loadManifest: async () =>
             JSON.stringify({
               editableGlobs: ['apps/cli/src/*.ts'],
               evaluation: {
-                rankOrder: [
-                  { direction: 'higher', metric: 'overall_pass_rate', sourceId: 'bond' },
-                ],
+                rankOrder: [{ direction: 'higher', metric: 'overall_pass_rate', sourceId: 'bond' }],
                 sources: [{ id: 'bond', manifestPath: 'evals/demo.json', type: 'bond_eval' }],
               },
               version: 1,
@@ -365,10 +350,6 @@ function makeEvalReport(): EvalRunReport {
     objectivePassed: true,
     overallPassed: true,
     startedAt: '2026-03-19T00:00:00.000Z',
-    status: {
-      compactionsUsed: 0,
-      stepsUsed: 2,
-      stopReason: 'completed',
-    },
+    status: { compactionsUsed: 0, stepsUsed: 2, stopReason: 'completed' },
   };
 }

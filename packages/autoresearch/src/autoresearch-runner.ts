@@ -1,7 +1,12 @@
 import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 
-import { AgentSession, type AgentSessionOptions } from './agent-session.ts';
+import {
+  AgentSession,
+  type AgentSessionOptions,
+  type ModelClient,
+  type Tool,
+} from '@bond/agent-core';
 import {
   parseEvalManifest,
   runEvalManifest,
@@ -9,10 +14,8 @@ import {
   type EvalManifest,
   type EvalRunReport,
   type RunEvalManifestOptions,
-} from './eval-runner.ts';
-import { CORRECTNESS_CRITIC } from './judges.ts';
-import type { JudgeProvider } from './judge-runner.ts';
-import type { ModelClient, Tool } from './types.ts';
+} from '@bond/evals';
+import { CORRECTNESS_CRITIC, type JudgeProvider } from '@bond/judges';
 import { z } from 'zod';
 
 const BOND_EVAL_METRIC_NAMES = [
@@ -278,10 +281,7 @@ export async function runAutoresearch(
     await git.ensureExcluded(repoRoot, relativeOutputDir);
   }
 
-  let frontier =
-    records
-      .filter((record) => record.status === 'keep')
-      .at(-1) ?? null;
+  let frontier = records.filter((record) => record.status === 'keep').at(-1) ?? null;
 
   if (!frontier) {
     const baselineRecord = await evaluateFrontier({
@@ -307,7 +307,7 @@ export async function runAutoresearch(
     frontier = baselineRecord;
   }
 
-  const maxExperiments = options.forever ? Number.MAX_SAFE_INTEGER : options.maxExperiments ?? 10;
+  const maxExperiments = options.forever ? Number.MAX_SAFE_INTEGER : (options.maxExperiments ?? 10);
 
   for (let offset = 0; offset < maxExperiments; offset += 1) {
     const experiment = records.length;
@@ -331,7 +331,10 @@ export async function runAutoresearch(
         });
         browsed = true;
         await writeFile(join(experimentDir, 'web-notes.md'), formatWebNotes(webResearch));
-        await writeFile(join(experimentDir, 'sources.json'), JSON.stringify(webResearch.sources, null, 2));
+        await writeFile(
+          join(experimentDir, 'sources.json'),
+          JSON.stringify(webResearch.sources, null, 2),
+        );
       }
 
       const session = (dependencies.createSession ?? defaultCreateSession)({
@@ -372,16 +375,13 @@ export async function runAutoresearch(
         await writeExperimentSummary(experimentDir, record.summary);
         await persistExperiment(outputDir, record);
         records.push(record);
-        await options.onProgress?.({
-          branchName,
-          outputDir,
-          record,
-          type: 'experiment-complete',
-        });
+        await options.onProgress?.({ branchName, outputDir, record, type: 'experiment-complete' });
         continue;
       }
 
-      if (!changedPaths.every((path) => matchesEditableGlobs(path, normalizedManifest.editableGlobs))) {
+      if (
+        !changedPaths.every((path) => matchesEditableGlobs(path, normalizedManifest.editableGlobs))
+      ) {
         await git.resetHard(repoRoot, frontier.commit);
         const record: AutoresearchExperimentRecord = {
           browsed,
@@ -396,12 +396,7 @@ export async function runAutoresearch(
         await writeExperimentFailureArtifacts(experimentDir, record.summary);
         await persistExperiment(outputDir, record);
         records.push(record);
-        await options.onProgress?.({
-          branchName,
-          outputDir,
-          record,
-          type: 'experiment-complete',
-        });
+        await options.onProgress?.({ branchName, outputDir, record, type: 'experiment-complete' });
         continue;
       }
 
@@ -425,7 +420,13 @@ export async function runAutoresearch(
       if (!candidateRecord.sourceResults.every((result) => !result.required || result.passed)) {
         candidateRecord.status = 'discard';
         await git.resetHard(repoRoot, frontier.commit);
-      } else if (compareMetrics(candidateRecord.metrics, frontier.metrics, normalizedManifest.evaluation.rankOrder) > 0) {
+      } else if (
+        compareMetrics(
+          candidateRecord.metrics,
+          frontier.metrics,
+          normalizedManifest.evaluation.rankOrder,
+        ) > 0
+      ) {
         candidateRecord.status = 'keep';
         frontier = candidateRecord;
       } else {
@@ -457,21 +458,11 @@ export async function runAutoresearch(
       await writeExperimentFailureArtifacts(experimentDir, message);
       await persistExperiment(outputDir, record);
       records.push(record);
-      await options.onProgress?.({
-        branchName,
-        outputDir,
-        record,
-        type: 'experiment-complete',
-      });
+      await options.onProgress?.({ branchName, outputDir, record, type: 'experiment-complete' });
     }
   }
 
-  return {
-    branchName,
-    experiments: records,
-    frontierCommit: frontier.commit,
-    outputDir,
-  };
+  return { branchName, experiments: records, frontierCommit: frontier.commit, outputDir };
 }
 
 class AutoresearchCrashError extends Error {}
@@ -491,12 +482,12 @@ class ShellGitOps implements AutoresearchGitOps {
   }
 
   async changedPaths(repoRoot: string): Promise<string[]> {
-    const result = await execCommand(repoRoot, this.shell, [
-      'git',
-      'status',
-      '--porcelain',
-      '--untracked-files=all',
-    ], true);
+    const result = await execCommand(
+      repoRoot,
+      this.shell,
+      ['git', 'status', '--porcelain', '--untracked-files=all'],
+      true,
+    );
 
     if (result.exitCode !== 0) {
       throw new Error(result.stderr || result.stdout || 'git status failed');
@@ -507,7 +498,7 @@ class ShellGitOps implements AutoresearchGitOps {
       .map((line) => line.trimEnd())
       .filter((line) => line.length > 0)
       .map((line) => line.slice(3))
-      .map((path) => path.includes(' -> ') ? path.split(' -> ').at(-1) ?? path : path);
+      .map((path) => (path.includes(' -> ') ? (path.split(' -> ').at(-1) ?? path) : path));
   }
 
   async commitAll(repoRoot: string, message: string): Promise<string> {
@@ -521,7 +512,12 @@ class ShellGitOps implements AutoresearchGitOps {
   }
 
   async currentBranch(repoRoot: string): Promise<string> {
-    const result = await execCommand(repoRoot, this.shell, ['git', 'rev-parse', '--abbrev-ref', 'HEAD']);
+    const result = await execCommand(repoRoot, this.shell, [
+      'git',
+      'rev-parse',
+      '--abbrev-ref',
+      'HEAD',
+    ]);
 
     if (result.exitCode !== 0) {
       throw new Error(result.stderr || result.stdout || 'git rev-parse failed');
@@ -557,7 +553,9 @@ class ShellGitOps implements AutoresearchGitOps {
 
     if (excludePathResult.exitCode !== 0) {
       throw new Error(
-        excludePathResult.stderr || excludePathResult.stdout || 'git rev-parse --git-path info/exclude failed',
+        excludePathResult.stderr ||
+          excludePathResult.stdout ||
+          'git rev-parse --git-path info/exclude failed',
       );
     }
 
@@ -643,10 +641,16 @@ async function evaluateFrontier(params: {
     );
   }
 
-  await writeFile(join(params.experimentDir, 'metrics.json'), JSON.stringify(sourceResults, null, 2));
+  await writeFile(
+    join(params.experimentDir, 'metrics.json'),
+    JSON.stringify(sourceResults, null, 2),
+  );
   const capturedFiles = await captureArtifacts(params.repoRoot, params.manifest.captureGlobs);
   if (capturedFiles.length > 0) {
-    await writeFile(join(params.experimentDir, 'captured-files.json'), JSON.stringify(capturedFiles, null, 2));
+    await writeFile(
+      join(params.experimentDir, 'captured-files.json'),
+      JSON.stringify(capturedFiles, null, 2),
+    );
   }
   await writeFile(join(params.experimentDir, 'summary.txt'), params.summary);
 
@@ -672,7 +676,9 @@ async function evaluateBondEvalSource(
   },
 ): Promise<AutoresearchSourceResult> {
   const manifestPath = resolve(params.repoRoot, source.manifestPath);
-  const manifestSource = await (params.dependencies.loadEvalManifest ?? defaultLoadText)(manifestPath);
+  const manifestSource = await (params.dependencies.loadEvalManifest ?? defaultLoadText)(
+    manifestPath,
+  );
   const manifest = await parseEvalManifest(manifestSource);
   const reports = await (params.dependencies.runEvalManifest ?? runEvalManifest)(manifest, {
     caseIds: source.caseIds.length > 0 ? source.caseIds : undefined,
@@ -697,7 +703,9 @@ async function evaluateBondEvalSource(
 
   const metrics = {
     avg_correctness_score: average(
-      reports.map((report) => readCorrectnessScore(report)).filter((score): score is number => score !== undefined),
+      reports
+        .map((report) => readCorrectnessScore(report))
+        .filter((score): score is number => score !== undefined),
     ),
     avg_judge_composite_score: average(reports.map((report) => report.judges.compositeScore)),
     avg_objective_pass_rate: average(reports.map((report) => (report.objectivePassed ? 1 : 0))),
@@ -717,12 +725,7 @@ async function evaluateBondEvalSource(
 
 async function evaluateShellSource(
   source: AutoresearchShellSource,
-  options: {
-    cwd: string;
-    experimentDir: string;
-    shell: string;
-    timeoutMs?: number;
-  },
+  options: { cwd: string; experimentDir: string; shell: string; timeoutMs?: number },
 ): Promise<AutoresearchSourceResult> {
   const child = Bun.spawn([options.shell, '-lc', source.command], {
     cwd: options.cwd,
@@ -811,7 +814,9 @@ function average(values: number[]): number {
     return 0;
   }
 
-  return Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10_000) / 10_000;
+  return (
+    Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10_000) / 10_000
+  );
 }
 
 function buildExperimentPrompt(params: {
@@ -866,7 +871,11 @@ async function captureArtifacts(
   const matches = new Set<string>();
 
   for (const pattern of patterns) {
-    for await (const match of new Bun.Glob(pattern).scan({ absolute: false, cwd, onlyFiles: true })) {
+    for await (const match of new Bun.Glob(pattern).scan({
+      absolute: false,
+      cwd,
+      onlyFiles: true,
+    })) {
       matches.add(match);
     }
   }
@@ -917,27 +926,15 @@ async function execCommand(
   raw = false,
 ): Promise<{ exitCode: number; stderr: string; stdout: string }> {
   const child = Array.isArray(command)
-    ? Bun.spawn(command, {
-        cwd,
-        stderr: 'pipe',
-        stdout: 'pipe',
-      })
-    : Bun.spawn([shell, '-lc', command], {
-        cwd,
-        stderr: 'pipe',
-        stdout: 'pipe',
-      });
+    ? Bun.spawn(command, { cwd, stderr: 'pipe', stdout: 'pipe' })
+    : Bun.spawn([shell, '-lc', command], { cwd, stderr: 'pipe', stdout: 'pipe' });
   const [exitCode, stdout, stderr] = await Promise.all([
     child.exited,
     new Response(child.stdout).text(),
     new Response(child.stderr).text(),
   ]);
 
-  return {
-    exitCode,
-    stderr: raw ? stderr : stderr.trim(),
-    stdout: raw ? stdout : stdout.trim(),
-  };
+  return { exitCode, stderr: raw ? stderr : stderr.trim(), stdout: raw ? stdout : stdout.trim() };
 }
 
 function flattenMetrics(sourceResults: AutoresearchSourceResult[]): AutoresearchMetricValue[] {
@@ -1020,9 +1017,10 @@ function formatPersistentFailures(
   frontier: AutoresearchExperimentRecord,
   recentExperiments: AutoresearchExperimentRecord[],
 ): string {
-  const recentFailureRecords = dedupeByExperiment([frontier, ...recentExperiments.slice(-3)]).filter(
-    (record) => hasRequiredFailures(record),
-  );
+  const recentFailureRecords = dedupeByExperiment([
+    frontier,
+    ...recentExperiments.slice(-3),
+  ]).filter((record) => hasRequiredFailures(record));
 
   if (recentFailureRecords.length === 0) {
     return '- none';
@@ -1031,13 +1029,18 @@ function formatPersistentFailures(
   const lines = recentFailureRecords.flatMap((record) =>
     record.sourceResults
       .filter((result) => result.required && !result.passed)
-      .map((result) => `- #${formatExperimentNumber(record.experiment)} ${result.id}: ${result.details}`),
+      .map(
+        (result) =>
+          `- #${formatExperimentNumber(record.experiment)} ${result.id}: ${result.details}`,
+      ),
   );
 
   return lines.length > 0 ? lines.join('\n') : '- none';
 }
 
-function dedupeByExperiment(records: AutoresearchExperimentRecord[]): AutoresearchExperimentRecord[] {
+function dedupeByExperiment(
+  records: AutoresearchExperimentRecord[],
+): AutoresearchExperimentRecord[] {
   const seen = new Set<number>();
 
   return records.filter((record) => {
@@ -1113,8 +1116,7 @@ function formatShellSourceDetails(params: {
   stdout: string;
 }): string {
   const sample = summarizeShellOutput(params.stdout, params.stderr);
-  const artifacts =
-    params.artifacts.length > 0 ? ` artifacts=${params.artifacts.join(',')}` : '';
+  const artifacts = params.artifacts.length > 0 ? ` artifacts=${params.artifacts.join(',')}` : '';
 
   return [
     `exit=${params.exitCode}`,
@@ -1244,7 +1246,13 @@ function summarizeShellOutput(stdout: string, stderr: string): string {
 }
 
 function summarizeAgentOutput(text: string): string {
-  return text.trim().split('\n').find((line) => line.trim().length > 0)?.trim() ?? '';
+  return (
+    text
+      .trim()
+      .split('\n')
+      .find((line) => line.trim().length > 0)
+      ?.trim() ?? ''
+  );
 }
 
 function summarizeFrontier(

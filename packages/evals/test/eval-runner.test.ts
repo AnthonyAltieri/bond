@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 
+import type {
+  ModelClient,
+  ModelTurnEvent,
+  ModelTurnParams,
+  ModelTurnResult,
+} from '@bond/agent-core';
 import {
   formatEvalReportSummary,
   parseEvalManifest,
@@ -8,13 +14,8 @@ import {
   runEvalManifest,
   writeEvalReport,
   type EvalRunReport,
-  type JudgeProvider,
-  type JudgeProviderRequest,
-  type ModelClient,
-  type ModelTurnEvent,
-  type ModelTurnParams,
-  type ModelTurnResult,
-} from '@bond/agent-core';
+} from '@bond/evals';
+import { type JudgeProvider, type JudgeProviderRequest } from '@bond/judges';
 import type { z } from 'zod';
 
 describe('eval runner', () => {
@@ -22,12 +23,7 @@ describe('eval runner', () => {
     const manifest = await parseEvalManifest(
       JSON.stringify({
         cases: [
-          {
-            description: 'Demo case',
-            id: 'demo',
-            prompt: 'Say ok',
-            workingDirectoryMode: 'repo',
-          },
+          { description: 'Demo case', id: 'demo', prompt: 'Say ok', workingDirectoryMode: 'repo' },
         ],
         version: 1,
       }),
@@ -82,12 +78,7 @@ describe('eval runner', () => {
       expect(report.objectivePassed).toBe(true);
       expect(report.judgePassed).toBe(true);
       expect(report.overallPassed).toBe(true);
-      expect(report.capturedFiles).toEqual([
-        {
-          content: 'artifact content',
-          path: 'artifact.txt',
-        },
-      ]);
+      expect(report.capturedFiles).toEqual([{ content: 'artifact content', path: 'artifact.txt' }]);
       expect(report.objectiveChecks).toHaveLength(2);
       expect(report.judges.results).toHaveLength(4);
       expect(formatEvalReportSummary(report)).toContain('eval:repo-case');
@@ -152,13 +143,7 @@ describe('eval runner', () => {
           commandTimeoutMs: 10,
           description: 'Times out a hanging objective check',
           id: 'timeout-case',
-          objectiveChecks: [
-            {
-              category: 'runtime',
-              command: 'sleep 1',
-              name: 'slow check',
-            },
-          ],
+          objectiveChecks: [{ category: 'runtime', command: 'sleep 1', name: 'slow check' }],
           prompt: 'Return ok',
           workingDirectoryMode: 'repo',
         },
@@ -205,9 +190,7 @@ class FakeJudgeProvider implements JudgeProvider {
 class ScriptedModelClient implements ModelClient {
   constructor(private readonly finalText: string) {}
 
-  async *streamTurn(
-    _params: ModelTurnParams,
-  ): AsyncGenerator<ModelTurnEvent, ModelTurnResult> {
+  async *streamTurn(_params: ModelTurnParams): AsyncGenerator<ModelTurnEvent, ModelTurnResult> {
     yield { chunk: this.finalText, kind: 'text-delta' };
 
     return {

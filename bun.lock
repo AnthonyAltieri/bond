@@ -15,6 +15,9 @@
       "name": "@bond/cli",
       "dependencies": {
         "@bond/agent-core": "workspace:*",
+        "@bond/autoresearch": "workspace:*",
+        "@bond/evals": "workspace:*",
+        "@bond/judges": "workspace:*",
         "@bond/tool-registry": "workspace:*",
         "@t3-oss/env-core": "^0.13.10",
         "zod": "^4.3.6",
@@ -23,11 +26,33 @@
     "packages/agent-core": {
       "name": "@bond/agent-core",
       "dependencies": {
+        "@alt-stack/result": "^0.1.4",
         "@bond/tool-runtime": "workspace:*",
+        "@bond/utils": "workspace:*",
         "zod": "^4.3.6",
       },
-      "devDependencies": {
-        "@bond/tool-shell": "workspace:*",
+    },
+    "packages/autoresearch": {
+      "name": "@bond/autoresearch",
+      "dependencies": {
+        "@bond/agent-core": "workspace:*",
+        "@bond/evals": "workspace:*",
+        "@bond/judges": "workspace:*",
+        "zod": "^4.3.6",
+      },
+    },
+    "packages/evals": {
+      "name": "@bond/evals",
+      "dependencies": {
+        "@bond/agent-core": "workspace:*",
+        "@bond/judges": "workspace:*",
+        "zod": "^4.3.6",
+      },
+    },
+    "packages/judges": {
+      "name": "@bond/judges",
+      "dependencies": {
+        "zod": "^4.3.6",
       },
     },
     "packages/tool-registry": {
@@ -46,17 +71,34 @@
         "@bond/tool-runtime": "workspace:*",
       },
     },
+    "packages/utils": {
+      "name": "@bond/utils",
+      "dependencies": {
+        "@alt-stack/result": "^0.1.4",
+        "zod": "^4.3.6",
+      },
+    },
   },
   "packages": {
+    "@alt-stack/result": ["@alt-stack/result@0.1.4", "", { "peerDependencies": { "zod": "^4.0.0" }, "optionalPeers": ["zod"] }, "sha512-yVA9A6umv2ucTPVnT/QC6p8MEj6XniAcm+HWk40+/hcO+LUyjlbHVQuR+lP5048/z6UjW31jJuXwavQpnCoW5w=="],
+
     "@bond/agent-core": ["@bond/agent-core@workspace:packages/agent-core"],
 
+    "@bond/autoresearch": ["@bond/autoresearch@workspace:packages/autoresearch"],
+
     "@bond/cli": ["@bond/cli@workspace:apps/cli"],
+
+    "@bond/evals": ["@bond/evals@workspace:packages/evals"],
+
+    "@bond/judges": ["@bond/judges@workspace:packages/judges"],
 
     "@bond/tool-registry": ["@bond/tool-registry@workspace:packages/tool-registry"],
 
     "@bond/tool-runtime": ["@bond/tool-runtime@workspace:packages/tool-runtime"],
 
     "@bond/tool-shell": ["@bond/tool-shell@workspace:packages/tool-shell"],
+
+    "@bond/utils": ["@bond/utils@workspace:packages/utils"],
 
     "@oxfmt/binding-android-arm-eabi": ["@oxfmt/binding-android-arm-eabi@0.40.0", "", { "os": "android", "cpu": "arm" }, "sha512-S6zd5r1w/HmqR8t0CTnGjFTBLDq2QKORPwriCHxo4xFNuhmOTABGjPaNvCJJVnrKBLsohOeiDX3YqQfJPF+FXw=="],
 

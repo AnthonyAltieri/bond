@@ -1,5 +1,5 @@
 {
-  "name": "@bond/agent-core",
+  "name": "@bond/autoresearch",
   "private": true,
   "type": "module",
   "exports": {
@@ -10,9 +10,9 @@
     "lint": "bunx oxlint src test"
   },
   "dependencies": {
-    "@alt-stack/result": "^0.1.4",
-    "@bond/tool-runtime": "workspace:*",
-    "@bond/utils": "workspace:*",
+    "@bond/agent-core": "workspace:*",
+    "@bond/evals": "workspace:*",
+    "@bond/judges": "workspace:*",
     "zod": "^4.3.6"
   }
 }

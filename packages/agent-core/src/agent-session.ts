@@ -1,3 +1,5 @@
+import { unwrap } from '@alt-stack/result';
+
 import { compactConversation } from './compactor.ts';
 import { ConversationState } from './conversation-state.ts';
 import { buildPromptScaffold } from './prompt-scaffold.ts';
@@ -73,7 +75,13 @@ export class AgentSession {
     this.toolDefinitions = tools.map((tool) => tool.definition);
     this.toolMap = new Map(tools.map((tool) => [tool.definition.name, tool]));
     this.state = new ConversationState(
-      buildPromptScaffold({ cwd: this.cwd, shell: this.shell }),
+      unwrap(
+        buildPromptScaffold({
+          cwd: this.cwd,
+          shell: this.shell,
+          toolDefinitions: this.toolDefinitions,
+        }),
+      ),
     );
   }
 

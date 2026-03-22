@@ -1,7 +1,7 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 
-import { AgentSession } from './agent-session.ts';
+import { AgentSession, type ModelClient, type Tool } from '@bond/agent-core';
 import {
   ARCHITECTURE_CRITIC,
   CORRECTNESS_CRITIC,
@@ -11,10 +11,9 @@ import {
   type JudgeEnsembleResult,
   type ObjectiveCheckCategory,
   objectiveCheckCategorySchema,
-} from './judges.ts';
-import type { JudgeProvider } from './judge-runner.ts';
-import { runJudgeEnsemble } from './judge-runner.ts';
-import type { ModelClient, Tool } from './types.ts';
+  type JudgeProvider,
+  runJudgeEnsemble,
+} from '@bond/judges';
 import { z } from 'zod';
 
 const DEFAULT_TEMP_ROOT = '/tmp';
@@ -91,11 +90,7 @@ export interface EvalRunReport {
   objectivePassed: boolean;
   overallPassed: boolean;
   startedAt: string;
-  status: {
-    compactionsUsed: number;
-    stopReason: 'completed' | 'max_steps';
-    stepsUsed: number;
-  };
+  status: { compactionsUsed: number; stopReason: 'completed' | 'max_steps'; stepsUsed: number };
 }
 
 export interface RunEvalCaseOptions {
@@ -260,11 +255,7 @@ export async function writeEvalReport(path: string, report: EvalRunReport): Prom
 function buildExecutionSummary(
   cwd: string,
   entry: EvalCase,
-  result: {
-    compactionsUsed: number;
-    stopReason: 'completed' | 'max_steps';
-    stepsUsed: number;
-  },
+  result: { compactionsUsed: number; stopReason: 'completed' | 'max_steps'; stepsUsed: number },
 ): string {
   return [
     `workspace=${cwd}`,
@@ -275,14 +266,15 @@ function buildExecutionSummary(
   ].join('\n');
 }
 
-async function captureArtifacts(
-  cwd: string,
-  patterns: string[],
-): Promise<ChangedFileArtifact[]> {
+async function captureArtifacts(cwd: string, patterns: string[]): Promise<ChangedFileArtifact[]> {
   const matches = new Set<string>();
 
   for (const pattern of patterns) {
-    for await (const match of new Bun.Glob(pattern).scan({ absolute: false, cwd, onlyFiles: true })) {
+    for await (const match of new Bun.Glob(pattern).scan({
+      absolute: false,
+      cwd,
+      onlyFiles: true,
+    })) {
       matches.add(match);
     }
   }
@@ -335,11 +327,7 @@ function evaluateFinalResponse(
 
 async function runObjectiveCheck(
   check: EvalObjectiveCheckSpec,
-  options: {
-    cwd: string;
-    shell: string;
-    timeoutMs?: number;
-  },
+  options: { cwd: string; shell: string; timeoutMs?: number },
 ): Promise<EvalObjectiveCheckResult> {
   const child = Bun.spawn([options.shell, '-lc', check.command], {
     cwd: options.cwd,

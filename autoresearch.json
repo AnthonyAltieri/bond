@@ -22,12 +22,7 @@
   "webResearch": {
     "enabled": true,
     "maxQueriesPerExperiment": 3,
-    "domainsAllowlist": [
-      "platform.openai.com",
-      "openai.com",
-      "bun.sh",
-      "github.com"
-    ],
+    "domainsAllowlist": ["platform.openai.com", "openai.com", "bun.sh", "github.com"],
     "requireSourceNotes": true
   },
   "evaluation": {
@@ -46,26 +41,10 @@
       }
     ],
     "rankOrder": [
-      {
-        "sourceId": "bond_eval",
-        "metric": "overall_pass_rate",
-        "direction": "higher"
-      },
-      {
-        "sourceId": "bond_eval",
-        "metric": "avg_objective_pass_rate",
-        "direction": "higher"
-      },
-      {
-        "sourceId": "bond_eval",
-        "metric": "avg_correctness_score",
-        "direction": "higher"
-      },
-      {
-        "sourceId": "bond_eval",
-        "metric": "avg_judge_composite_score",
-        "direction": "higher"
-      }
+      { "sourceId": "bond_eval", "metric": "overall_pass_rate", "direction": "higher" },
+      { "sourceId": "bond_eval", "metric": "avg_objective_pass_rate", "direction": "higher" },
+      { "sourceId": "bond_eval", "metric": "avg_correctness_score", "direction": "higher" },
+      { "sourceId": "bond_eval", "metric": "avg_judge_composite_score", "direction": "higher" }
     ]
   }
 }

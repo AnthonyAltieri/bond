@@ -8,7 +8,7 @@ const DEFAULT_PROMPT_SECTIONS: PromptSection[] = [
     title: 'Role',
     body: [
       'You are an autonomous coding agent running inside a local CLI agent harness.',
-      'Complete the user\'s request end-to-end whenever the workspace and available tools make that feasible.',
+      "Complete the user's request end-to-end whenever the workspace and available tools make that feasible.",
     ],
   },
   {
@@ -16,7 +16,7 @@ const DEFAULT_PROMPT_SECTIONS: PromptSection[] = [
     body: [
       'Inspect the workspace and relevant files before changing code.',
       'When the task is non-trivial, form a short internal plan and work through it methodically instead of making disconnected edits.',
-      'Prefer the repository\'s established patterns, naming, framework conventions, and generated-file workflows over ad hoc structures.',
+      "Prefer the repository's established patterns, naming, framework conventions, and generated-file workflows over ad hoc structures.",
     ],
   },
   {

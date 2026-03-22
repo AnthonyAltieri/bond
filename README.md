@@ -1,6 +1,6 @@
 # bond
 
-`bond` is a deliberately small agentic CLI built with Bun. The current version stays intentionally narrow: one CLI app, one core package, one Responses API-compatible provider, and a small `packages/tool-*` layer for local coding tools.
+`bond` is a deliberately small agentic CLI built with Bun. The current version stays intentionally narrow: one CLI app, a core agent runtime package, dedicated eval/judge/autoresearch packages, and a small `packages/tool-*` layer for local coding tools.
 
 ## Structure
 
@@ -10,6 +10,9 @@
 - `packages/agent-core/src/conversation-state.ts`: scaffold items, conversation items, tool outputs
 - `packages/agent-core/src/prompt-scaffold.ts`: permissions instructions, repo instructions, environment context
 - `packages/agent-core/src/compactor.ts`: summary turn, conversation replacement
+- `packages/judges`: judge specs, aggregation, ensemble runner, OpenAI judge provider
+- `packages/evals`: eval manifests, eval runner, report formatting/writing
+- `packages/autoresearch`: autoresearch manifests, experiment loop, web researcher
 - `packages/tool-runtime`: shared tool contracts used by the harness and tool packages
 - `packages/tool-shell`: shell execution, stdout/stderr streaming, result summary
 - `packages/tool-registry`: default local toolset assembly for the CLI

@@ -11,7 +11,7 @@ import {
   type JudgeInput,
   type JudgeProvider,
   type JudgeProviderRequest,
-} from '@bond/agent-core';
+} from '@bond/judges';
 import type { z } from 'zod';
 
 describe('judge utilities', () => {
@@ -104,10 +104,38 @@ describe('judge utilities', () => {
 describe('runJudgeEnsemble', () => {
   test('runs all critics through the provider and returns a combined verdict', async () => {
     const provider = new FakeJudgeProvider({
-      [ARCHITECTURE_CRITIC.id]: { confidence: 'high', issues: [], pass: true, score: 4, strengths: ['Modular'], summary: 'Architecture is sound.' },
-      [CORRECTNESS_CRITIC.id]: { confidence: 'high', issues: [], pass: true, score: 5, strengths: ['Tests passed'], summary: 'Evidence supports correctness.' },
-      [SIMPLICITY_CRITIC.id]: { confidence: 'medium', issues: [], pass: true, score: 5, strengths: ['Small surface'], summary: 'Solution is concise.' },
-      [GOAL_CRITIC.id]: { confidence: 'high', issues: [], pass: true, score: 4, strengths: ['Matches request'], summary: 'Goal was met.' },
+      [ARCHITECTURE_CRITIC.id]: {
+        confidence: 'high',
+        issues: [],
+        pass: true,
+        score: 4,
+        strengths: ['Modular'],
+        summary: 'Architecture is sound.',
+      },
+      [CORRECTNESS_CRITIC.id]: {
+        confidence: 'high',
+        issues: [],
+        pass: true,
+        score: 5,
+        strengths: ['Tests passed'],
+        summary: 'Evidence supports correctness.',
+      },
+      [SIMPLICITY_CRITIC.id]: {
+        confidence: 'medium',
+        issues: [],
+        pass: true,
+        score: 5,
+        strengths: ['Small surface'],
+        summary: 'Solution is concise.',
+      },
+      [GOAL_CRITIC.id]: {
+        confidence: 'high',
+        issues: [],
+        pass: true,
+        score: 4,
+        strengths: ['Matches request'],
+        summary: 'Goal was met.',
+      },
     });
 
     const result = await runJudgeEnsemble(provider, makeJudgeInput(), [
@@ -189,23 +217,30 @@ function makeJudgeInput(): JudgeInput {
     finalResponse: 'Implemented the requested change and verified it.',
     objectiveChecks: [
       { category: 'build', details: 'bun run build exited 0', name: 'build', passed: true },
-      { category: 'runtime', details: 'GET /api/hello returned 500', name: 'endpoint', passed: false },
+      {
+        category: 'runtime',
+        details: 'GET /api/hello returned 500',
+        name: 'endpoint',
+        passed: false,
+      },
     ],
     taskPrompt: 'Add a hello endpoint and verify it locally.',
   };
 }
 
-function makeJudgeResult(
-  spec: typeof ARCHITECTURE_CRITIC,
-  score: number,
-  pass: boolean,
-) {
+function makeJudgeResult(spec: typeof ARCHITECTURE_CRITIC, score: number, pass: boolean) {
   return {
     confidence: 'high' as const,
     id: spec.id,
     issues: pass
       ? []
-      : [{ evidence: ['objective check failed'], message: 'Did not satisfy the requested behavior.', severity: 'high' as const }],
+      : [
+          {
+            evidence: ['objective check failed'],
+            message: 'Did not satisfy the requested behavior.',
+            severity: 'high' as const,
+          },
+        ],
     label: spec.label,
     pass,
     passThreshold: spec.passThreshold,

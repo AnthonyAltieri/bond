@@ -14,12 +14,7 @@ interface OpenAIJudgeResponse {
 }
 
 const ResponseOutputTextSchema = zod.object({
-  content: zod.array(
-    zod.object({
-      text: zod.string().optional(),
-      type: zod.string(),
-    }),
-  ),
+  content: zod.array(zod.object({ text: zod.string().optional(), type: zod.string() })),
   type: zod.string(),
 });
 
@@ -48,11 +43,7 @@ export class OpenAIJudgeProvider implements JudgeProvider {
             role: 'developer',
             type: 'message',
           },
-          {
-            content: [{ text: request.input, type: 'input_text' }],
-            role: 'user',
-            type: 'message',
-          },
+          { content: [{ text: request.input, type: 'input_text' }], role: 'user', type: 'message' },
         ],
         model: request.model,
         text: {

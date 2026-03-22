@@ -3,18 +3,19 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type {
+  ModelClient,
+  ModelTurnEvent,
+  ModelTurnParams,
+  ModelTurnResult,
+} from '@bond/agent-core';
 import {
   parseAutoresearchManifest,
   runAutoresearch,
   type AutoresearchGitOps,
-  type EvalManifest,
-  type EvalRunReport,
-  type ModelClient,
-  type ModelTurnEvent,
-  type ModelTurnParams,
-  type ModelTurnResult,
   type WebResearchResult,
-} from '@bond/agent-core';
+} from '@bond/autoresearch';
+import type { EvalManifest, EvalRunReport } from '@bond/evals';
 
 const originalFetch = globalThis.fetch;
 
@@ -33,11 +34,7 @@ describe('parseAutoresearchManifest', () => {
             { direction: 'lower', metric: 'latency_ms', sourceId: 'checks' },
           ],
           sources: [
-            {
-              id: 'bond',
-              manifestPath: 'evals/demo.json',
-              type: 'bond_eval',
-            },
+            { id: 'bond', manifestPath: 'evals/demo.json', type: 'bond_eval' },
             {
               command: 'echo latency_ms=120',
               id: 'checks',
@@ -132,7 +129,10 @@ describe('runAutoresearch', () => {
       );
 
       const resultsTsv = await readFile(join(outputDir, 'results.tsv'), 'utf8');
-      const webNotes = await readFile(join(outputDir, 'experiments', '0001', 'web-notes.md'), 'utf8');
+      const webNotes = await readFile(
+        join(outputDir, 'experiments', '0001', 'web-notes.md'),
+        'utf8',
+      );
 
       expect(result.frontierCommit).toBe('commit-keep');
       expect(result.experiments.map((experiment) => experiment.status)).toEqual([
@@ -276,8 +276,14 @@ describe('runAutoresearch', () => {
         },
       );
 
-      const crashSummary = await readFile(join(outputDir, 'experiments', '0001', 'summary.txt'), 'utf8');
-      const crashError = await readFile(join(outputDir, 'experiments', '0001', 'error.txt'), 'utf8');
+      const crashSummary = await readFile(
+        join(outputDir, 'experiments', '0001', 'summary.txt'),
+        'utf8',
+      );
+      const crashError = await readFile(
+        join(outputDir, 'experiments', '0001', 'error.txt'),
+        'utf8',
+      );
 
       expect(result.experiments.map((experiment) => experiment.status)).toEqual([
         'keep',
@@ -422,8 +428,16 @@ describe('runAutoresearch', () => {
 
       expect(shellResult?.details).toContain('exit=1');
       expect(shellResult?.details).toContain('sample="failing test name"');
-      expect(shellResult?.artifacts?.some((path) => path.includes('.autoresearch/demo/experiments/0000/shell/focused_tests.stdout.txt'))).toBe(true);
-      expect(shellResult?.artifacts?.some((path) => path.includes('.autoresearch/demo/experiments/0000/shell/focused_tests.stderr.txt'))).toBe(true);
+      expect(
+        shellResult?.artifacts?.some((path) =>
+          path.includes('.autoresearch/demo/experiments/0000/shell/focused_tests.stdout.txt'),
+        ),
+      ).toBe(true);
+      expect(
+        shellResult?.artifacts?.some((path) =>
+          path.includes('.autoresearch/demo/experiments/0000/shell/focused_tests.stderr.txt'),
+        ),
+      ).toBe(true);
       expect(await readFile(stdoutArtifact, 'utf8')).toContain('score=1');
       expect(await readFile(stderrArtifact, 'utf8')).toContain('failing test name');
     } finally {
@@ -439,11 +453,20 @@ describe('runAutoresearch', () => {
       const git = new FakeGitOps(
         [
           [],
-          ['packages/agent-core/src/system-prompt.ts', 'packages/agent-core/test/agent-session.test.ts'],
+          [
+            'packages/agent-core/src/system-prompt.ts',
+            'packages/agent-core/test/agent-session.test.ts',
+          ],
           [],
-          ['packages/agent-core/src/system-prompt.ts', 'packages/agent-core/test/agent-session.test.ts'],
+          [
+            'packages/agent-core/src/system-prompt.ts',
+            'packages/agent-core/test/agent-session.test.ts',
+          ],
           [],
-          ['packages/agent-core/src/system-prompt.ts', 'packages/agent-core/test/agent-session.test.ts'],
+          [
+            'packages/agent-core/src/system-prompt.ts',
+            'packages/agent-core/test/agent-session.test.ts',
+          ],
         ],
         ['commit-1', 'commit-2', 'commit-3'],
       );
@@ -529,11 +552,8 @@ describe('OpenAIWebResearcher', () => {
       );
     }) as typeof fetch;
 
-    const { OpenAIWebResearcher } = await import('@bond/agent-core');
-    const researcher = new OpenAIWebResearcher({
-      apiKey: 'test-key',
-      model: 'gpt-test',
-    });
+    const { OpenAIWebResearcher } = await import('@bond/autoresearch');
+    const researcher = new OpenAIWebResearcher({ apiKey: 'test-key', model: 'gpt-test' });
     const result = await researcher.research({
       domainsAllowlist: ['example.com'],
       frontierSummary: 'frontier',
@@ -545,17 +565,7 @@ describe('OpenAIWebResearcher', () => {
 
     const parsedBody = JSON.parse(requestBody) as {
       model: string;
-      text: {
-        format: {
-          schema: {
-            properties: {
-              sources: {
-                items: { required: string[] };
-              };
-            };
-          };
-        };
-      };
+      text: { format: { schema: { properties: { sources: { items: { required: string[] } } } } } };
       tools: Array<{ type: string }>;
     };
 
@@ -631,12 +641,7 @@ class FakeGitOps implements AutoresearchGitOps {
 function makeEvalManifest(): EvalManifest {
   return {
     cases: [
-      {
-        description: 'Demo case',
-        id: 'demo',
-        prompt: 'Say ok',
-        workingDirectoryMode: 'repo',
-      },
+      { description: 'Demo case', id: 'demo', prompt: 'Say ok', workingDirectoryMode: 'repo' },
     ],
     version: 1,
   };
@@ -684,23 +689,13 @@ function makeEvalReport(overallPassRate: number): EvalRunReport {
     objectivePassed: overallPassed,
     overallPassed,
     startedAt: '2026-03-19T00:00:00.000Z',
-    status: {
-      compactionsUsed: 0,
-      stepsUsed: 1,
-      stopReason: 'completed',
-    },
+    status: { compactionsUsed: 0, stepsUsed: 1, stopReason: 'completed' },
   };
 }
 
 class NoopModelClient implements ModelClient {
-  async *streamTurn(
-    _params: ModelTurnParams,
-  ): AsyncGenerator<ModelTurnEvent, ModelTurnResult> {
+  async *streamTurn(_params: ModelTurnParams): AsyncGenerator<ModelTurnEvent, ModelTurnResult> {
     yield { chunk: '', kind: 'text-delta' };
-    return {
-      assistantText: '',
-      items: [],
-      toolCalls: [],
-    };
+    return { assistantText: '', items: [], toolCalls: [] };
   }
 }

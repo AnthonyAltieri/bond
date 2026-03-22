@@ -177,13 +177,12 @@ export function aggregateJudgeResults(results: JudgeRunResult[]): JudgeEnsembleR
   const goalCritic = results.find((result) => result.id === GOAL_CRITIC.id);
   const goalCriticFailed = goalCritic !== undefined && goalCritic.score <= 2;
   const correctnessCritic = results.find((result) => result.id === CORRECTNESS_CRITIC.id);
-  const correctnessCriticFailed =
-    correctnessCritic !== undefined && correctnessCritic.score <= 2;
+  const correctnessCriticFailed = correctnessCritic !== undefined && correctnessCritic.score <= 2;
   const thresholdFailures = results.filter((result) => result.score < result.passThreshold);
   const explicitFailures = results.filter((result) => !result.pass);
   const blockingIssues = dedupeJudgeIssues([
-    ...(goalCriticFailed ? goalCritic?.issues ?? [] : []),
-    ...(correctnessCriticFailed ? correctnessCritic?.issues ?? [] : []),
+    ...(goalCriticFailed ? (goalCritic?.issues ?? []) : []),
+    ...(correctnessCriticFailed ? (correctnessCritic?.issues ?? []) : []),
     ...collectBlockingIssues(results),
   ]);
   const passed =
@@ -238,7 +237,9 @@ export function formatJudgeInput(input: JudgeInput): string {
 
 function collectBlockingIssues(results: JudgeRunResult[]): JudgeIssue[] {
   return results.flatMap((result) =>
-    result.issues.filter((issue) => issue.severity === 'high' || result.score < result.passThreshold),
+    result.issues.filter(
+      (issue) => issue.severity === 'high' || result.score < result.passThreshold,
+    ),
   );
 }
 
@@ -304,6 +305,8 @@ function summarizeJudgeResults(
   passed: boolean,
 ): string {
   const resultSummary = results.map((result) => `${result.label} ${result.score}/5`).join(', ');
-  const reviewNote = needsHumanReview ? ' Critics disagree materially; human review is recommended.' : '';
+  const reviewNote = needsHumanReview
+    ? ' Critics disagree materially; human review is recommended.'
+    : '';
   return `Combined verdict: ${passed ? 'pass' : 'fail'} at ${roundToTwoDecimals(compositeScore)}/5. ${resultSummary}.${reviewNote}`;
 }

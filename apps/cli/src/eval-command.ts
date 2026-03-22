@@ -1,17 +1,17 @@
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
+import { OpenAIResponsesClient } from '@bond/agent-core';
 import {
   formatEvalReportSummary,
-  OpenAIJudgeProvider,
-  OpenAIResponsesClient,
   parseEvalManifest,
   runEvalManifest,
   writeEvalReport,
   type EvalManifest,
   type EvalRunReport,
   type RunEvalManifestOptions,
-} from '@bond/agent-core';
+} from '@bond/evals';
+import { OpenAIJudgeProvider } from '@bond/judges';
 import { createLocalToolset } from '@bond/tool-registry';
 
 import type { EvalCliConfig } from './config.ts';

@@ -1,9 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
+import { OpenAIResponsesClient } from '@bond/agent-core';
 import {
-  OpenAIJudgeProvider,
-  OpenAIResponsesClient,
   OpenAIWebResearcher,
   parseAutoresearchManifest,
   runAutoresearch,
@@ -11,7 +10,8 @@ import {
   type AutoresearchProgressEvent,
   type AutoresearchRunOptions,
   type AutoresearchRunResult,
-} from '@bond/agent-core';
+} from '@bond/autoresearch';
+import { OpenAIJudgeProvider } from '@bond/judges';
 import { createLocalToolset } from '@bond/tool-registry';
 
 import type { AutoresearchCliConfig } from './config.ts';
@@ -85,9 +85,13 @@ async function defaultLoadText(path: string): Promise<string> {
 }
 
 function formatProgress(event: AutoresearchProgressEvent): string {
-  const overallPassRate = event.record.metrics.find((metric) => metric.metric === 'overall_pass_rate');
+  const overallPassRate = event.record.metrics.find(
+    (metric) => metric.metric === 'overall_pass_rate',
+  );
   return [
-    event.type === 'baseline-complete' ? 'baseline' : `experiment=${String(event.record.experiment).padStart(4, '0')}`,
+    event.type === 'baseline-complete'
+      ? 'baseline'
+      : `experiment=${String(event.record.experiment).padStart(4, '0')}`,
     `status=${event.record.status}`,
     overallPassRate ? `overall_pass_rate=${overallPassRate.value}` : undefined,
     `summary=${sanitizeProgressSummary(event.record.summary)}`,

@@ -1,12 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import { mkdir, readFile, readdir, rm } from 'node:fs/promises';
 
-import {
-  AgentSession,
-  OpenAIJudgeProvider,
-  OpenAIResponsesClient,
-  runEvalCase,
-} from '@bond/agent-core';
+import { AgentSession, OpenAIResponsesClient } from '@bond/agent-core';
+import { runEvalCase } from '@bond/evals';
+import { OpenAIJudgeProvider } from '@bond/judges';
 import { createShellTool } from '@bond/tool-shell';
 
 const apiKey = process.env.OPENAI_API_KEY;
@@ -14,17 +11,20 @@ const model = process.env.OPENAI_MODEL ?? 'gpt-5.4';
 const architectureJudgeModel =
   process.env.OPENAI_JUDGE_MODEL_ARCHITECTURE ?? process.env.OPENAI_JUDGE_MODEL ?? model;
 const hasApiKey = typeof apiKey === 'string' && apiKey.length > 0;
-const goalJudgeModel = process.env.OPENAI_JUDGE_MODEL_GOAL ?? process.env.OPENAI_JUDGE_MODEL ?? model;
+const goalJudgeModel =
+  process.env.OPENAI_JUDGE_MODEL_GOAL ?? process.env.OPENAI_JUDGE_MODEL ?? model;
 const simplicityJudgeModel =
   process.env.OPENAI_JUDGE_MODEL_SIMPLICITY ?? process.env.OPENAI_JUDGE_MODEL ?? model;
 const testIfOpenAIKey = hasApiKey ? test : test.skip;
 
 describe('basic OpenAI loop evals', () => {
   testIfOpenAIKey('uses shell tool for pwd and completes', async () => {
-    const result = await runAgentEval([
-      'Use the shell tool exactly once to run `pwd`.',
-      'Then answer with one line: WORKDIR=<absolute_path>.',
-    ].join(' '));
+    const result = await runAgentEval(
+      [
+        'Use the shell tool exactly once to run `pwd`.',
+        'Then answer with one line: WORKDIR=<absolute_path>.',
+      ].join(' '),
+    );
 
     expect(result.stopReason).toBe('completed');
     expect(result.stepsUsed).toBeGreaterThanOrEqual(2);
@@ -34,10 +34,12 @@ describe('basic OpenAI loop evals', () => {
   });
 
   testIfOpenAIKey('uses shell tool for a fast file count command', async () => {
-    const result = await runAgentEval([
-      'Use the shell tool exactly once to run this command: `find . -maxdepth 1 -type f | wc -l`.',
-      'Then answer with one line: FILE_COUNT=<number>.',
-    ].join(' '));
+    const result = await runAgentEval(
+      [
+        'Use the shell tool exactly once to run this command: `find . -maxdepth 1 -type f | wc -l`.',
+        'Then answer with one line: FILE_COUNT=<number>.',
+      ].join(' '),
+    );
 
     expect(result.stopReason).toBe('completed');
     expect(result.stepsUsed).toBeGreaterThanOrEqual(2);
@@ -61,11 +63,7 @@ describe('basic OpenAI loop evals', () => {
             id: 'tanstack-router-app',
             maxSteps: 16,
             objectiveChecks: [
-              {
-                category: 'build',
-                command: 'bun run build',
-                name: 'build',
-              },
+              { category: 'build', command: 'bun run build', name: 'build' },
               {
                 category: 'content',
                 command: [
@@ -79,8 +77,8 @@ describe('basic OpenAI loop evals', () => {
             prompt: [
               'Create a small TanStack Router application in the current empty directory.',
               'Use this scaffold command exactly once: `bunx @tanstack/cli@latest create . --router-only --package-manager bun --no-examples --no-git --force`.',
-              "After scaffolding, update `src/routes/index.tsx` so the home page contains the exact heading `Bond TanStack Demo` and a feature list item `Live route generation`.",
-              "Update `src/routes/about.tsx` so it includes the exact sentence `Built by Bond with TanStack Router.`.",
+              'After scaffolding, update `src/routes/index.tsx` so the home page contains the exact heading `Bond TanStack Demo` and a feature list item `Live route generation`.',
+              'Update `src/routes/about.tsx` so it includes the exact sentence `Built by Bond with TanStack Router.`.',
               'Verify success by running `bun run build`.',
               'When finished, answer with exactly one line: EVAL_RESULT=ok',
             ].join(' '),
@@ -90,7 +88,10 @@ describe('basic OpenAI loop evals', () => {
             client: new OpenAIResponsesClient({ apiKey, baseUrl: process.env.OPENAI_BASE_URL }),
             judgeModels: {
               architecture: architectureJudgeModel,
-              correctness: process.env.OPENAI_JUDGE_MODEL_CORRECTNESS ?? process.env.OPENAI_JUDGE_MODEL ?? model,
+              correctness:
+                process.env.OPENAI_JUDGE_MODEL_CORRECTNESS ??
+                process.env.OPENAI_JUDGE_MODEL ??
+                model,
               goal: goalJudgeModel,
               simplicity: simplicityJudgeModel,
             },
@@ -103,8 +104,12 @@ describe('basic OpenAI loop evals', () => {
             tools: [createShellTool()],
           },
         );
-        const indexRoute = report.capturedFiles.find((file) => file.path === 'src/routes/index.tsx');
-        const aboutRoute = report.capturedFiles.find((file) => file.path === 'src/routes/about.tsx');
+        const indexRoute = report.capturedFiles.find(
+          (file) => file.path === 'src/routes/index.tsx',
+        );
+        const aboutRoute = report.capturedFiles.find(
+          (file) => file.path === 'src/routes/about.tsx',
+        );
 
         expect(report.status.stopReason).toBe('completed');
         expect(report.status.stepsUsed).toBeGreaterThanOrEqual(3);
@@ -137,11 +142,7 @@ describe('basic OpenAI loop evals', () => {
             'Verify success by running `bun run build`.',
             'When finished, answer with exactly one line: EVAL_RESULT=ok',
           ].join(' '),
-          {
-            commandTimeoutMs: 120_000,
-            cwd: tempRoot,
-            maxSteps: 16,
-          },
+          { commandTimeoutMs: 120_000, cwd: tempRoot, maxSteps: 16 },
         );
         const [indexRoute, endpointRoutePaths] = await Promise.all([
           readFile(`${tempRoot}/src/routes/index.tsx`, 'utf8'),
@@ -177,11 +178,7 @@ describe('basic OpenAI loop evals', () => {
 
 async function runAgentEval(
   prompt: string,
-  options: {
-    commandTimeoutMs?: number;
-    cwd?: string;
-    maxSteps?: number;
-  } = {},
+  options: { commandTimeoutMs?: number; cwd?: string; maxSteps?: number } = {},
 ) {
   if (!apiKey) {
     throw new Error('OPENAI_API_KEY is required for evals');
@@ -210,11 +207,7 @@ async function runCommand(
   cwd: string,
   command: string[],
 ): Promise<{ exitCode: number; stderr: string; stdout: string }> {
-  const child = Bun.spawn(command, {
-    cwd,
-    stderr: 'pipe',
-    stdout: 'pipe',
-  });
+  const child = Bun.spawn(command, { cwd, stderr: 'pipe', stdout: 'pipe' });
 
   const [exitCode, stdout, stderr] = await Promise.all([
     child.exited,
@@ -246,16 +239,12 @@ async function findRouteFilesContaining(directory: string, needle: string): Prom
   return matches;
 }
 
-async function fetchJsonFromDevServer(
-  cwd: string,
-  path: string,
-): Promise<Record<string, unknown>> {
+async function fetchJsonFromDevServer(cwd: string, path: string): Promise<Record<string, unknown>> {
   const port = pickPort();
-  const child = Bun.spawn(['bun', 'run', 'dev', '--', '--host', '127.0.0.1', '--port', String(port)], {
-    cwd,
-    stderr: 'pipe',
-    stdout: 'pipe',
-  });
+  const child = Bun.spawn(
+    ['bun', 'run', 'dev', '--', '--host', '127.0.0.1', '--port', String(port)],
+    { cwd, stderr: 'pipe', stdout: 'pipe' },
+  );
   const stdoutPromise = child.stdout ? new Response(child.stdout).text() : Promise.resolve('');
   const stderrPromise = child.stderr ? new Response(child.stderr).text() : Promise.resolve('');
 

@@ -1,18 +1,21 @@
 import { describe, expect, test } from 'bun:test';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 
+import { isErr, isOk } from '@alt-stack/result';
 import {
   AgentSession,
+  buildPrompt,
   buildPromptScaffold,
   buildSystemPrompt,
-  createShellTool,
   DEFAULT_SYSTEM_PROMPT,
   type ModelClient,
   type ModelTurnEvent,
   type ModelTurnParams,
   type ModelTurnResult,
+  type PromptSectionContext,
   type ResponseInputItem,
 } from '@bond/agent-core';
+import { createShellTool } from '@bond/tool-shell';
 
 describe('AgentSession', () => {
   test('runs a tool call and appends function call output', async () => {
@@ -184,7 +187,15 @@ describe('buildPromptScaffold', () => {
       await writeFile(`${tempRoot}/AGENTS.md`, 'Root instructions');
       await writeFile(`${nestedDirectory}/AGENTS.override.md`, 'Nested instructions');
 
-      const items = buildPromptScaffold({ cwd: nestedDirectory, shell: 'zsh' });
+      const result = buildPromptScaffold({ cwd: nestedDirectory, shell: 'zsh' });
+
+      expect(isOk(result)).toBe(true);
+
+      if (!isOk(result)) {
+        throw result.error;
+      }
+
+      const items = result.value;
 
       expect(items).toHaveLength(3);
       expect(items[1]).toEqual({
@@ -205,6 +216,68 @@ describe('buildPromptScaffold', () => {
     } finally {
       await rm(tempRoot, { force: true, recursive: true });
     }
+  });
+});
+
+describe('buildPrompt', () => {
+  test('includes tool guidance when tool definitions are provided', () => {
+    const result = buildPrompt(
+      createPromptSectionContext({
+        cwd: process.cwd(),
+        now: new Date('2026-03-20T12:00:00.000Z'),
+        shell: 'zsh',
+        toolDefinitions: [createShellTool().definition],
+      }),
+    );
+
+    expect(isOk(result)).toBe(true);
+
+    if (!isOk(result)) {
+      throw result.error;
+    }
+
+    expect(result.value[1]).toEqual({
+      content: [{ text: expect.stringContaining('shell:'), type: 'input_text' }],
+      role: 'developer',
+      type: 'message',
+    });
+  });
+
+  test('returns a tagged error when the next user input is invalid', () => {
+    const result = buildPrompt(
+      createPromptSectionContext({
+        cwd: process.cwd(),
+        now: new Date('2026-03-20T12:00:00.000Z'),
+        shell: 'zsh',
+      }),
+      {
+        content: [{ text: 'assistant text is not valid user input', type: 'output_text' }],
+        role: 'user',
+        type: 'message',
+      } as never,
+    );
+
+    expect(isErr(result)).toBe(true);
+
+    if (!isErr(result)) {
+      throw new Error('Expected buildPrompt to fail');
+    }
+
+    expect(result.error._tag).toBe('PromptScaffoldInvalidUserInputError');
+  });
+
+  test('returns a tagged error when execution context receives an invalid date', () => {
+    const result = buildPrompt(
+      createPromptSectionContext({ cwd: process.cwd(), now: new Date(Number.NaN), shell: 'zsh' }),
+    );
+
+    expect(isErr(result)).toBe(true);
+
+    if (!isErr(result)) {
+      throw new Error('Expected buildPrompt to fail');
+    }
+
+    expect(result.error._tag).toBe('PromptScaffoldInvalidExecutionContextError');
   });
 });
 
@@ -252,4 +325,17 @@ async function mkdtemp(prefix: string): Promise<string> {
   const directory = `${prefix}${Date.now()}-${Math.random().toString(16).slice(2)}`;
   await mkdir(`${directory}/nested`, { recursive: true });
   return directory;
+}
+
+function createPromptSectionContext(
+  overrides: Partial<PromptSectionContext> & Pick<PromptSectionContext, 'cwd' | 'now' | 'shell'>,
+): PromptSectionContext {
+  return {
+    cwd: overrides.cwd,
+    history: overrides.history ?? [],
+    maxRepoInstructionsChars: overrides.maxRepoInstructionsChars ?? 32 * 1024,
+    now: overrides.now,
+    shell: overrides.shell,
+    toolDefinitions: overrides.toolDefinitions ?? [],
+  };
 }

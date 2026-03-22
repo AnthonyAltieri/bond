@@ -99,13 +99,9 @@ export function createEvalCliConfig(
     cwd,
     judgeModels: {
       architecture:
-        args.judgeModelArchitecture ??
-        env.OPENAI_JUDGE_MODEL_ARCHITECTURE ??
-        sharedJudgeModel,
+        args.judgeModelArchitecture ?? env.OPENAI_JUDGE_MODEL_ARCHITECTURE ?? sharedJudgeModel,
       correctness:
-        args.judgeModelCorrectness ??
-        env.OPENAI_JUDGE_MODEL_CORRECTNESS ??
-        sharedJudgeModel,
+        args.judgeModelCorrectness ?? env.OPENAI_JUDGE_MODEL_CORRECTNESS ?? sharedJudgeModel,
       goal: args.judgeModelGoal ?? env.OPENAI_JUDGE_MODEL_GOAL ?? sharedJudgeModel,
       simplicity:
         args.judgeModelSimplicity ?? env.OPENAI_JUDGE_MODEL_SIMPLICITY ?? sharedJudgeModel,
@@ -137,13 +133,9 @@ export function createAutoresearchCliConfig(
     forever: args.forever,
     judgeModels: {
       architecture:
-        args.judgeModelArchitecture ??
-        env.OPENAI_JUDGE_MODEL_ARCHITECTURE ??
-        sharedJudgeModel,
+        args.judgeModelArchitecture ?? env.OPENAI_JUDGE_MODEL_ARCHITECTURE ?? sharedJudgeModel,
       correctness:
-        args.judgeModelCorrectness ??
-        env.OPENAI_JUDGE_MODEL_CORRECTNESS ??
-        sharedJudgeModel,
+        args.judgeModelCorrectness ?? env.OPENAI_JUDGE_MODEL_CORRECTNESS ?? sharedJudgeModel,
       goal: args.judgeModelGoal ?? env.OPENAI_JUDGE_MODEL_GOAL ?? sharedJudgeModel,
       simplicity:
         args.judgeModelSimplicity ?? env.OPENAI_JUDGE_MODEL_SIMPLICITY ?? sharedJudgeModel,

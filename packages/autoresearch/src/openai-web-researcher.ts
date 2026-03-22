@@ -1,4 +1,8 @@
-import type { WebResearchRequest, WebResearchResult, WebResearcher } from './autoresearch-runner.ts';
+import type {
+  WebResearchRequest,
+  WebResearchResult,
+  WebResearcher,
+} from './autoresearch-runner.ts';
 import { z } from 'zod';
 
 interface OpenAIWebResearcherOptions {
@@ -14,12 +18,7 @@ interface OpenAIResearchResponse {
 }
 
 const ResponseOutputTextSchema = z.object({
-  content: z.array(
-    z.object({
-      text: z.string().optional(),
-      type: z.string(),
-    }),
-  ),
+  content: z.array(z.object({ text: z.string().optional(), type: z.string() })),
   type: z.string(),
 });
 
@@ -27,12 +26,7 @@ const WebResearchResultSchema = z.object({
   ideas: z.array(z.string().min(1)).default([]),
   notes: z.string().min(1),
   sources: z
-    .array(
-      z.object({
-        title: z.string().min(1).nullable(),
-        url: z.string().min(1),
-      }),
-    )
+    .array(z.object({ title: z.string().min(1).nullable(), url: z.string().min(1) }))
     .default([]),
 });
 
@@ -142,7 +136,9 @@ function buildResearchPrompt(request: WebResearchRequest): string {
   ].join('\n');
 }
 
-function summarizeRecentHotspots(recentExperiments: WebResearchRequest['recentExperiments']): string[] {
+function summarizeRecentHotspots(
+  recentExperiments: WebResearchRequest['recentExperiments'],
+): string[] {
   const counts = new Map<string, number>();
 
   for (const experiment of recentExperiments) {

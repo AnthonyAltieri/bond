@@ -9,6 +9,9 @@
   },
   "dependencies": {
     "@bond/agent-core": "workspace:*",
+    "@bond/autoresearch": "workspace:*",
+    "@bond/evals": "workspace:*",
+    "@bond/judges": "workspace:*",
     "@bond/tool-registry": "workspace:*",
     "@t3-oss/env-core": "^0.13.10",
     "zod": "^4.3.6"
