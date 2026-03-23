@@ -1,5 +1,5 @@
 {
-  "name": "@bond/tool-registry",
+  "name": "@bond/tool-plan",
   "private": true,
   "type": "module",
   "exports": {
@@ -10,8 +10,6 @@
     "lint": "bunx oxlint src test"
   },
   "dependencies": {
-    "@bond/tool-plan": "workspace:*",
-    "@bond/tool-runtime": "workspace:*",
-    "@bond/tool-shell": "workspace:*"
+    "@bond/tool-runtime": "workspace:*"
   }
 }

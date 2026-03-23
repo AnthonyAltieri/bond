@@ -1,7 +1,7 @@
 import { unwrap } from '@alt-stack/result';
 
 import { compactConversation } from './compactor.ts';
-import { ConversationState } from './conversation-state.ts';
+import { ConversationState, createUserMessage } from './conversation-state.ts';
 import { buildPromptScaffold } from './prompt-scaffold.ts';
 import { DEFAULT_SYSTEM_PROMPT } from './system-prompt.ts';
 import type { Tool, ToolDefinition, ToolEvent, ToolExecutionResult } from '@bond/tool-runtime';
@@ -11,6 +11,8 @@ import type {
   ModelClient,
   ModelTurnEvent,
   ModelTurnResult,
+  PlanSnapshot,
+  ResponseMessageItem,
   ResponseInputItem,
   ToolCall,
 } from './types.ts';
@@ -53,6 +55,8 @@ export class AgentSession {
   private readonly shell: string;
 
   private readonly state: ConversationState;
+
+  private currentPlan?: PlanSnapshot;
 
   private readonly toolDefinitions: ToolDefinition[];
 
@@ -98,17 +102,21 @@ export class AgentSession {
   }
 
   async *stream(prompt: string): AsyncGenerator<AgentEvent, AgentRunResult> {
+    this.currentPlan = undefined;
     this.state.appendUserMessage(prompt);
 
     let compactionsUsed = 0;
     let finalText = '';
 
     for (let step = 0; step < this.maxSteps; step += 1) {
+      const dynamicItems = getDynamicPromptItems(this.currentPlan);
+      const inputItems = this.state.getInputItems(dynamicItems);
+
       if (
         shouldCompact(
           this.instructions,
           this.toolDefinitions,
-          this.state.getInputItems(),
+          inputItems,
           this.autoCompactTokenLimit,
           this.state.canCompact(),
         )
@@ -120,10 +128,7 @@ export class AgentSession {
           conversationItems: this.state.getConversationItems(),
           instructions: this.instructions,
           model: this.compactionModel,
-          scaffoldItems: getScaffoldItems(
-            this.state.getInputItems(),
-            this.state.getConversationItems(),
-          ),
+          scaffoldItems: this.state.getScaffoldItems(dynamicItems),
         });
 
         this.state.replaceConversation(compaction.replacementItems);
@@ -131,7 +136,9 @@ export class AgentSession {
         yield { kind: 'compaction-complete', summary: compaction.summary };
       }
 
-      const modelResult = yield* this.streamModelTurn(this.state.getInputItems());
+      const modelResult = yield* this.streamModelTurn(
+        this.state.getInputItems(getDynamicPromptItems(this.currentPlan)),
+      );
       finalText = modelResult.assistantText;
       this.state.appendResponseItems(modelResult.items);
 
@@ -139,7 +146,8 @@ export class AgentSession {
         const result = {
           compactionsUsed,
           finalText,
-          inputItems: this.state.getInputItems(),
+          inputItems: this.state.getInputItems(getDynamicPromptItems(this.currentPlan)),
+          plan: clonePlan(this.currentPlan),
           stepsUsed: step + 1,
           stopReason: 'completed',
         } satisfies AgentRunResult;
@@ -155,13 +163,21 @@ export class AgentSession {
         this.state.appendToolOutput(toolCall.id, toolResult.content);
 
         yield { call: toolCall, kind: 'tool-result', result: toolResult };
+
+        const plan = extractPlanSnapshot(toolResult);
+
+        if (plan) {
+          this.currentPlan = plan;
+          yield { kind: 'plan-update', plan: clonePlan(plan) };
+        }
       }
     }
 
     const result = {
       compactionsUsed,
       finalText,
-      inputItems: this.state.getInputItems(),
+      inputItems: this.state.getInputItems(getDynamicPromptItems(this.currentPlan)),
+      plan: clonePlan(this.currentPlan),
       stepsUsed: this.maxSteps,
       stopReason: 'max_steps',
     } satisfies AgentRunResult;
@@ -250,11 +266,74 @@ function estimateTokens(
   return Math.ceil(JSON.stringify({ input, instructions, tools }).length / 4);
 }
 
-function getScaffoldItems(
-  inputItems: ResponseInputItem[],
-  conversationItems: ResponseInputItem[],
-): ResponseInputItem[] {
-  return structuredClone(inputItems.slice(0, inputItems.length - conversationItems.length));
+function clonePlan(plan: PlanSnapshot | undefined): PlanSnapshot | undefined {
+  return plan ? structuredClone(plan) : undefined;
+}
+
+function extractPlanSnapshot(result: ToolExecutionResult): PlanSnapshot | undefined {
+  if (result.name !== 'update_plan' || !result.metadata) {
+    return undefined;
+  }
+
+  const plan = Reflect.get(result.metadata, 'plan');
+
+  return isPlanSnapshot(plan) ? structuredClone(plan) : undefined;
+}
+
+function formatCurrentPlan(plan: PlanSnapshot): string {
+  const lines = ['<current_plan>'];
+
+  if (plan.explanation) {
+    lines.push(`Explanation: ${plan.explanation}`);
+  }
+
+  lines.push('Steps:');
+  lines.push(...plan.steps.map((entry) => `- [${entry.status}] ${entry.step}`));
+  lines.push('</current_plan>');
+
+  return lines.join('\n');
+}
+
+function getDynamicPromptItems(plan: PlanSnapshot | undefined): ResponseInputItem[] {
+  if (!plan) {
+    return [];
+  }
+
+  return [createCurrentPlanMessage(plan)];
+}
+
+function createCurrentPlanMessage(plan: PlanSnapshot): ResponseMessageItem {
+  return createUserMessage(formatCurrentPlan(plan));
+}
+
+function isPlanSnapshot(value: unknown): value is PlanSnapshot {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+
+  const steps = Reflect.get(value, 'steps');
+  const explanation = Reflect.get(value, 'explanation');
+
+  if (!Array.isArray(steps)) {
+    return false;
+  }
+
+  if (explanation !== undefined && typeof explanation !== 'string') {
+    return false;
+  }
+
+  return steps.every(
+    (entry) =>
+      entry &&
+      typeof entry === 'object' &&
+      !Array.isArray(entry) &&
+      typeof Reflect.get(entry, 'step') === 'string' &&
+      isPlanStepStatus(Reflect.get(entry, 'status')),
+  );
+}
+
+function isPlanStepStatus(value: unknown): value is PlanSnapshot['steps'][number]['status'] {
+  return value === 'pending' || value === 'in_progress' || value === 'completed';
 }
 
 function shouldCompact(

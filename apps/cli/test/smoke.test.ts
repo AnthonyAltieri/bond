@@ -45,6 +45,23 @@ describe('cli smoke', () => {
     expect(stderr.text()).toBe('');
   });
 
+  test('renders plan updates without generic update_plan tool noise', async () => {
+    const stdout = new MemoryStream();
+    const stderr = new MemoryStream();
+
+    const exitCode = await runCli(['plan'], {
+      createSession: () => makeSmokeSession([]),
+      stderr,
+      stdout,
+    });
+
+    expect(exitCode).toBe(0);
+    expect(stdout.text()).toContain('done:plan');
+    expect(stderr.text()).toContain('[plan]');
+    expect(stderr.text()).toContain('- [in_progress] Implement the change');
+    expect(stderr.text()).not.toContain('[tool:update_plan]');
+  });
+
   test('runs the eval subcommand and reports the JSON output path', async () => {
     const stdout = new MemoryStream();
     const stderr = new MemoryStream();
@@ -217,6 +234,38 @@ function makeSmokeSession(prompts: string[]) {
           call: { id: 'call_1', inputText: '{"command":"pwd"}', name: 'shell' },
           kind: 'tool-result',
           result: makeToolResult(),
+        };
+      }
+
+      if (prompt === 'plan') {
+        yield {
+          call: {
+            id: 'call_plan',
+            inputText: '{"plan":[{"step":"Implement the change","status":"in_progress"}]}',
+            name: 'update_plan',
+          },
+          kind: 'tool-call',
+        };
+        yield {
+          call: {
+            id: 'call_plan',
+            inputText: '{"plan":[{"step":"Implement the change","status":"in_progress"}]}',
+            name: 'update_plan',
+          },
+          kind: 'tool-result',
+          result: {
+            content:
+              '<current_plan>\nSteps:\n- [in_progress] Implement the change\n</current_plan>',
+            metadata: {
+              plan: { steps: [{ status: 'in_progress', step: 'Implement the change' }] },
+            },
+            name: 'update_plan',
+            summary: 'steps=1 completed=0 in_progress=1',
+          },
+        };
+        yield {
+          kind: 'plan-update',
+          plan: { steps: [{ status: 'in_progress', step: 'Implement the change' }] },
         };
       }
 

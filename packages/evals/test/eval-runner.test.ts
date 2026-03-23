@@ -16,6 +16,7 @@ import {
   type EvalRunReport,
 } from '@bond/evals';
 import { type JudgeProvider, type JudgeProviderRequest } from '@bond/judges';
+import { createPlanTool } from '@bond/tool-plan';
 import type { z } from 'zod';
 
 describe('eval runner', () => {
@@ -170,6 +171,44 @@ describe('eval runner', () => {
       await rm(tempRoot, { force: true, recursive: true });
     }
   });
+
+  test('copies the final plan snapshot into report status when available', async () => {
+    const tempRoot = await createTempDir(`${process.cwd()}/tmp-eval-plan-`);
+
+    try {
+      const report = await runEvalCase(
+        {
+          description: 'Captures the final plan in status',
+          id: 'plan-case',
+          prompt: 'Return ok',
+          workingDirectoryMode: 'repo',
+        },
+        {
+          client: new PlanningModelClient(),
+          judgeModels: {
+            architecture: 'judge-arch',
+            correctness: 'judge-correct',
+            goal: 'judge-goal',
+            simplicity: 'judge-simple',
+          },
+          judgeProvider: new FakeJudgeProvider(),
+          model: 'agent-model',
+          repoRoot: tempRoot,
+          tools: [createPlanTool()],
+        },
+      );
+
+      expect(report.status.plan).toEqual({
+        explanation: 'Track progress.',
+        steps: [
+          { status: 'completed', step: 'Read the prompt' },
+          { status: 'in_progress', step: 'Return ok' },
+        ],
+      });
+    } finally {
+      await rm(tempRoot, { force: true, recursive: true });
+    }
+  });
 });
 
 class FakeJudgeProvider implements JudgeProvider {
@@ -201,6 +240,57 @@ class ScriptedModelClient implements ModelClient {
           role: 'assistant',
           type: 'message',
         },
+      ],
+      toolCalls: [],
+    };
+  }
+}
+
+class PlanningModelClient implements ModelClient {
+  private step = 0;
+
+  async *streamTurn(_params: ModelTurnParams): AsyncGenerator<ModelTurnEvent, ModelTurnResult> {
+    this.step += 1;
+
+    if (this.step === 1) {
+      return {
+        assistantText: 'Planning.',
+        items: [
+          {
+            arguments: JSON.stringify({
+              explanation: 'Track progress.',
+              plan: [
+                { status: 'completed', step: 'Read the prompt' },
+                { status: 'in_progress', step: 'Return ok' },
+              ],
+            }),
+            call_id: 'call_plan',
+            name: 'update_plan',
+            type: 'function_call',
+          },
+        ],
+        toolCalls: [
+          {
+            id: 'call_plan',
+            inputText: JSON.stringify({
+              explanation: 'Track progress.',
+              plan: [
+                { status: 'completed', step: 'Read the prompt' },
+                { status: 'in_progress', step: 'Return ok' },
+              ],
+            }),
+            name: 'update_plan',
+          },
+        ],
+      };
+    }
+
+    yield { chunk: 'ok', kind: 'text-delta' };
+
+    return {
+      assistantText: 'ok',
+      items: [
+        { content: [{ text: 'ok', type: 'output_text' }], role: 'assistant', type: 'message' },
       ],
       toolCalls: [],
     };

@@ -6,6 +6,7 @@ import {
   OpenAIResponsesClient,
   type AgentEvent,
   type AgentRunResult,
+  type PlanSnapshot,
   type ToolCall,
 } from '@bond/agent-core';
 import { createLocalToolset } from '@bond/tool-registry';
@@ -292,6 +293,9 @@ function handleAgentOutput(
       return assistantHasOutput;
     case 'compaction-complete':
       return assistantHasOutput;
+    case 'plan-update':
+      writePlanUpdate(context, output.plan);
+      return assistantHasOutput;
     case 'tool-call':
       return writeToolCall(context, output.call, assistantHasOutput);
     case 'tool-stdout':
@@ -328,6 +332,10 @@ async function runAgentTurn(
 }
 
 function writeToolCall(context: CliContext, call: ToolCall, assistantHasOutput: boolean): boolean {
+  if (call.name === 'update_plan') {
+    return assistantHasOutput;
+  }
+
   if (assistantHasOutput) {
     context.stdout.write('\n');
   }
@@ -340,7 +348,22 @@ function writeToolResult(
   context: CliContext,
   result: Extract<AgentEvent, { kind: 'tool-result' }>['result'],
 ): void {
+  if (result.name === 'update_plan') {
+    return;
+  }
+
   context.stderr.write(`[tool:${result.name}] ${result.summary}\n`);
+}
+
+function writePlanUpdate(context: CliContext, plan: PlanSnapshot): void {
+  const lines = ['[plan]'];
+
+  if (plan.explanation) {
+    lines.push(`Explanation: ${plan.explanation}`);
+  }
+
+  lines.push(...plan.steps.map((entry) => `- [${entry.status}] ${entry.step}`));
+  context.stderr.write(`${lines.join('\n')}\n`);
 }
 
 function writeTurnEnd(context: CliContext, result: AgentRunResult): void {

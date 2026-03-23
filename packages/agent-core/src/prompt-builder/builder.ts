@@ -8,12 +8,7 @@ import { createExecutionContextPrompt } from './execution-context.ts';
 import type { PromptScaffoldError } from './errors.ts';
 import { createSkillsPrompt } from './skills.ts';
 import { createToolGuidancePrompt } from './tool-guidance.ts';
-import type {
-  PromptSectionContext,
-  PromptSectionItems,
-  PromptSectionResult,
-  PromptUserMessage,
-} from './types.ts';
+import type { PromptSectionContext, PromptSectionResult, PromptUserMessage } from './types.ts';
 import { createUserInputPrompt } from './user-input.ts';
 import type { ResponseInputItem } from '../types.ts';
 
@@ -23,7 +18,6 @@ export function buildPrompt(
   context: PromptSectionContext,
   nextUserMessage?: PromptUserMessage,
 ): Result<ResponseInputItem[], PromptScaffoldError> {
-  const items: ResponseInputItem[] = [];
   const sections: PromptSectionResult[] = [
     createAgentIdentityPrompt(),
     createToolGuidancePrompt(context),
@@ -35,26 +29,19 @@ export function buildPrompt(
     createUserInputPrompt(nextUserMessage),
   ];
 
+  const items: ResponseInputItem[] = [];
   for (const section of sections) {
-    if (isErr(section)) {
-      return section;
-    }
+    // short circuit on any issue
+    if (isErr(section)) return section;
 
-    appendPromptSection(items, section.value);
+    if (!section.value) {
+      continue;
+    } else if (Array.isArray(section.value)) {
+      items.push(...section.value);
+    } else {
+      items.push(section.value);
+    }
   }
 
   return ok(items);
-}
-
-function appendPromptSection(items: ResponseInputItem[], section: PromptSectionItems): void {
-  if (!section) {
-    return;
-  }
-
-  if (Array.isArray(section)) {
-    items.push(...section);
-    return;
-  }
-
-  items.push(section);
 }

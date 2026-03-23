@@ -1,8 +1,8 @@
 import type { Result } from '@alt-stack/result';
 
-import { buildPrompt, DEFAULT_MAX_REPO_INSTRUCTIONS_CHARS } from './prompt-scaffold/builder.ts';
-import type { PromptScaffoldError } from './prompt-scaffold/errors.ts';
-import type { PromptSectionContext } from './prompt-scaffold/types.ts';
+import { buildPrompt, DEFAULT_MAX_REPO_INSTRUCTIONS_CHARS } from './prompt-builder/builder.ts';
+import type { PromptScaffoldError } from './prompt-builder/errors.ts';
+import type { PromptSectionContext } from './prompt-builder/types.ts';
 import type { ResponseInputItem, ToolDefinition } from './types.ts';
 
 export interface PromptScaffoldOptions {

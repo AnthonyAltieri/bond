@@ -27,6 +27,7 @@
       "name": "@bond/agent-core",
       "dependencies": {
         "@alt-stack/result": "^0.1.4",
+        "@bond/tool-plan": "workspace:*",
         "@bond/tool-runtime": "workspace:*",
         "@bond/utils": "workspace:*",
         "zod": "^4.3.6",
@@ -55,9 +56,16 @@
         "zod": "^4.3.6",
       },
     },
+    "packages/tool-plan": {
+      "name": "@bond/tool-plan",
+      "dependencies": {
+        "@bond/tool-runtime": "workspace:*",
+      },
+    },
     "packages/tool-registry": {
       "name": "@bond/tool-registry",
       "dependencies": {
+        "@bond/tool-plan": "workspace:*",
         "@bond/tool-runtime": "workspace:*",
         "@bond/tool-shell": "workspace:*",
       },
@@ -91,6 +99,8 @@
     "@bond/evals": ["@bond/evals@workspace:packages/evals"],
 
     "@bond/judges": ["@bond/judges@workspace:packages/judges"],
+
+    "@bond/tool-plan": ["@bond/tool-plan@workspace:packages/tool-plan"],
 
     "@bond/tool-registry": ["@bond/tool-registry@workspace:packages/tool-registry"],
 

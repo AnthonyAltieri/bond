@@ -1,5 +1,7 @@
+import type { PlanSnapshot, PlanStep, PlanStepStatus } from '@bond/tool-plan';
 import type { ToolCall, ToolDefinition, ToolExecutionResult } from '@bond/tool-runtime';
 
+export type { PlanSnapshot, PlanStep, PlanStepStatus } from '@bond/tool-plan';
 export type {
   JsonSchema,
   Tool,
@@ -95,6 +97,7 @@ export interface AgentRunResult {
   compactionsUsed: number;
   finalText: string;
   inputItems: ResponseInputItem[];
+  plan?: PlanSnapshot;
   stepsUsed: number;
   stopReason: AgentStopReason;
 }
@@ -104,6 +107,7 @@ export type AgentEvent =
   | { chunk: string; kind: 'text-delta' }
   | { kind: 'compaction-complete'; summary: string }
   | { kind: 'compaction-start' }
+  | { kind: 'plan-update'; plan: PlanSnapshot }
   | { call: ToolCall; kind: 'tool-call' }
   | { call: ToolCall; chunk: string; kind: 'tool-stderr' }
   | { call: ToolCall; chunk: string; kind: 'tool-stdout' }

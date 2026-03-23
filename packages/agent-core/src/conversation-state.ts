@@ -34,8 +34,12 @@ export class ConversationState {
     return structuredClone(this.conversationItems);
   }
 
-  getInputItems(): ResponseInputItem[] {
-    return [...structuredClone(this.scaffoldItems), ...structuredClone(this.conversationItems)];
+  getInputItems(dynamicItems: ResponseInputItem[] = []): ResponseInputItem[] {
+    return [...this.getScaffoldItems(dynamicItems), ...structuredClone(this.conversationItems)];
+  }
+
+  getScaffoldItems(dynamicItems: ResponseInputItem[] = []): ResponseInputItem[] {
+    return [...structuredClone(this.scaffoldItems), ...structuredClone(dynamicItems)];
   }
 
   replaceConversation(items: ResponseInputItem[]): void {

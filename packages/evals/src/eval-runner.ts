@@ -1,7 +1,7 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 
-import { AgentSession, type ModelClient, type Tool } from '@bond/agent-core';
+import { AgentSession, type ModelClient, type PlanSnapshot, type Tool } from '@bond/agent-core';
 import {
   ARCHITECTURE_CRITIC,
   CORRECTNESS_CRITIC,
@@ -90,7 +90,12 @@ export interface EvalRunReport {
   objectivePassed: boolean;
   overallPassed: boolean;
   startedAt: string;
-  status: { compactionsUsed: number; stopReason: 'completed' | 'max_steps'; stepsUsed: number };
+  status: {
+    compactionsUsed: number;
+    plan?: PlanSnapshot;
+    stopReason: 'completed' | 'max_steps';
+    stepsUsed: number;
+  };
 }
 
 export interface RunEvalCaseOptions {
@@ -220,6 +225,7 @@ export async function runEvalCase(
       startedAt,
       status: {
         compactionsUsed: agentResult.compactionsUsed,
+        plan: agentResult.plan,
         stepsUsed: agentResult.stepsUsed,
         stopReason: agentResult.stopReason,
       },

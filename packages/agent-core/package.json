@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@alt-stack/result": "^0.1.4",
+    "@bond/tool-plan": "workspace:*",
     "@bond/tool-runtime": "workspace:*",
     "@bond/utils": "workspace:*",
     "zod": "^4.3.6"

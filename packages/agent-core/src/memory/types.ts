@@ -1,12 +1,19 @@
 import { Result, TaggedError } from '@alt-stack/result';
 import z from 'zod';
 
-export class StorageNotFound extends TaggedError {
-  _tag = 'StorageNotFound';
+export class StorageNotFound extends TaggedError<'StorageNotFound'> {
+  readonly _tag = 'StorageNotFound';
+
+  constructor() {
+    super('Memory storage is not initialized or the backing database was removed.');
+  }
 }
-export class SerializationError extends TaggedError {
-  _tag = 'SerializationError';
-  value: unknown;
+export class SerializationError extends TaggedError<'SerializationError'> {
+  readonly _tag = 'SerializationError';
+
+  constructor(public readonly value: unknown) {
+    super('Memory item could not be serialized for storage.');
+  }
 }
 
 export const MemoryItemIdSchema = z.string().brand<'MemoryItemId'>();
@@ -19,7 +26,7 @@ export const MemoryItemSchema = z.strictObject({
   text: MemoryItemTextSchema,
 });
 
-type MemoryItem = z.infer<typeof MemoryItemSchema>;
+export type MemoryItem = z.infer<typeof MemoryItemSchema>;
 
 export interface MemoryStorage<TInitializeOptions = {}> {
   initialize: (
