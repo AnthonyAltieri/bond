@@ -1,12 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 
-import type {
-  ModelClient,
-  ModelTurnEvent,
-  ModelTurnParams,
-  ModelTurnResult,
-} from '@bond/agent-core';
+import type { ModelClient, ModelTurnEvent, ModelTurnParams, ModelTurnResult } from '@bond/agent';
 import {
   formatEvalReportSummary,
   parseEvalManifest,
@@ -16,7 +11,7 @@ import {
   type EvalRunReport,
 } from '@bond/evals';
 import { type JudgeProvider, type JudgeProviderRequest } from '@bond/judges';
-import { createPlanTool } from '@bond/tool-plan';
+import { createPlanTool } from '@bond/tools/plan';
 import type { z } from 'zod';
 
 describe('eval runner', () => {

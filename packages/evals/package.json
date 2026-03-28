@@ -10,8 +10,9 @@
     "lint": "bunx oxlint src test"
   },
   "dependencies": {
-    "@bond/agent-core": "workspace:*",
+    "@bond/agent": "workspace:*",
     "@bond/judges": "workspace:*",
+    "@bond/tools": "workspace:*",
     "zod": "^4.3.6"
   }
 }

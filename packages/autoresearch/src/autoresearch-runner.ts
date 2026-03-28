@@ -1,12 +1,7 @@
 import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 
-import {
-  AgentSession,
-  type AgentSessionOptions,
-  type ModelClient,
-  type Tool,
-} from '@bond/agent-core';
+import { AgentSession, type AgentSessionOptions, type ModelClient, type Tool } from '@bond/agent';
 import {
   parseEvalManifest,
   runEvalManifest,

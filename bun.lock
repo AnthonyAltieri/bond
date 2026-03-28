@@ -14,21 +14,20 @@
     "apps/cli": {
       "name": "@bond/cli",
       "dependencies": {
-        "@bond/agent-core": "workspace:*",
+        "@bond/agent": "workspace:*",
         "@bond/autoresearch": "workspace:*",
         "@bond/evals": "workspace:*",
         "@bond/judges": "workspace:*",
-        "@bond/tool-registry": "workspace:*",
+        "@bond/tools": "workspace:*",
         "@t3-oss/env-core": "^0.13.10",
         "zod": "^4.3.6",
       },
     },
-    "packages/agent-core": {
-      "name": "@bond/agent-core",
+    "packages/agent": {
+      "name": "@bond/agent",
       "dependencies": {
         "@alt-stack/result": "^0.1.4",
-        "@bond/tool-plan": "workspace:*",
-        "@bond/tool-runtime": "workspace:*",
+        "@bond/tools": "workspace:*",
         "@bond/utils": "workspace:*",
         "zod": "^4.3.6",
       },
@@ -36,7 +35,7 @@
     "packages/autoresearch": {
       "name": "@bond/autoresearch",
       "dependencies": {
-        "@bond/agent-core": "workspace:*",
+        "@bond/agent": "workspace:*",
         "@bond/evals": "workspace:*",
         "@bond/judges": "workspace:*",
         "zod": "^4.3.6",
@@ -45,8 +44,9 @@
     "packages/evals": {
       "name": "@bond/evals",
       "dependencies": {
-        "@bond/agent-core": "workspace:*",
+        "@bond/agent": "workspace:*",
         "@bond/judges": "workspace:*",
+        "@bond/tools": "workspace:*",
         "zod": "^4.3.6",
       },
     },
@@ -56,28 +56,8 @@
         "zod": "^4.3.6",
       },
     },
-    "packages/tool-plan": {
-      "name": "@bond/tool-plan",
-      "dependencies": {
-        "@bond/tool-runtime": "workspace:*",
-      },
-    },
-    "packages/tool-registry": {
-      "name": "@bond/tool-registry",
-      "dependencies": {
-        "@bond/tool-plan": "workspace:*",
-        "@bond/tool-runtime": "workspace:*",
-        "@bond/tool-shell": "workspace:*",
-      },
-    },
-    "packages/tool-runtime": {
-      "name": "@bond/tool-runtime",
-    },
-    "packages/tool-shell": {
-      "name": "@bond/tool-shell",
-      "dependencies": {
-        "@bond/tool-runtime": "workspace:*",
-      },
+    "packages/tools": {
+      "name": "@bond/tools",
     },
     "packages/utils": {
       "name": "@bond/utils",
@@ -90,7 +70,7 @@
   "packages": {
     "@alt-stack/result": ["@alt-stack/result@0.1.4", "", { "peerDependencies": { "zod": "^4.0.0" }, "optionalPeers": ["zod"] }, "sha512-yVA9A6umv2ucTPVnT/QC6p8MEj6XniAcm+HWk40+/hcO+LUyjlbHVQuR+lP5048/z6UjW31jJuXwavQpnCoW5w=="],
 
-    "@bond/agent-core": ["@bond/agent-core@workspace:packages/agent-core"],
+    "@bond/agent": ["@bond/agent@workspace:packages/agent"],
 
     "@bond/autoresearch": ["@bond/autoresearch@workspace:packages/autoresearch"],
 
@@ -100,13 +80,7 @@
 
     "@bond/judges": ["@bond/judges@workspace:packages/judges"],
 
-    "@bond/tool-plan": ["@bond/tool-plan@workspace:packages/tool-plan"],
-
-    "@bond/tool-registry": ["@bond/tool-registry@workspace:packages/tool-registry"],
-
-    "@bond/tool-runtime": ["@bond/tool-runtime@workspace:packages/tool-runtime"],
-
-    "@bond/tool-shell": ["@bond/tool-shell@workspace:packages/tool-shell"],
+    "@bond/tools": ["@bond/tools@workspace:packages/tools"],
 
     "@bond/utils": ["@bond/utils@workspace:packages/utils"],
 

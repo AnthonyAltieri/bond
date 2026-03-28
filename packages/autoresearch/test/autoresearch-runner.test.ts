@@ -3,12 +3,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type {
-  ModelClient,
-  ModelTurnEvent,
-  ModelTurnParams,
-  ModelTurnResult,
-} from '@bond/agent-core';
+import type { ModelClient, ModelTurnEvent, ModelTurnParams, ModelTurnResult } from '@bond/agent';
 import {
   parseAutoresearchManifest,
   runAutoresearch,
@@ -56,7 +51,7 @@ describe('parseAutoresearchManifest', () => {
     await expect(
       parseAutoresearchManifest(
         JSON.stringify({
-          editableGlobs: ['packages/agent-core/src/*.ts'],
+          editableGlobs: ['packages/agent/src/*.ts'],
           evaluation: {
             rankOrder: [{ direction: 'higher', metric: 'missing', sourceId: 'bond' }],
             sources: [{ id: 'bond', manifestPath: 'evals/demo.json', type: 'bond_eval' }],
@@ -158,7 +153,7 @@ describe('runAutoresearch', () => {
       const result = await runAutoresearch(
         await parseAutoresearchManifest(
           JSON.stringify({
-            editableGlobs: ['packages/agent-core/src/*.ts'],
+            editableGlobs: ['packages/agent/src/*.ts'],
             evaluation: {
               rankOrder: [{ direction: 'higher', metric: 'overall_pass_rate', sourceId: 'bond' }],
               sources: [{ id: 'bond', manifestPath: 'evals/demo.json', type: 'bond_eval' }],
@@ -453,20 +448,11 @@ describe('runAutoresearch', () => {
       const git = new FakeGitOps(
         [
           [],
-          [
-            'packages/agent-core/src/system-prompt.ts',
-            'packages/agent-core/test/agent-session.test.ts',
-          ],
+          ['packages/agent/src/system-prompt.ts', 'packages/agent/test/agent-session.test.ts'],
           [],
-          [
-            'packages/agent-core/src/system-prompt.ts',
-            'packages/agent-core/test/agent-session.test.ts',
-          ],
+          ['packages/agent/src/system-prompt.ts', 'packages/agent/test/agent-session.test.ts'],
           [],
-          [
-            'packages/agent-core/src/system-prompt.ts',
-            'packages/agent-core/test/agent-session.test.ts',
-          ],
+          ['packages/agent/src/system-prompt.ts', 'packages/agent/test/agent-session.test.ts'],
         ],
         ['commit-1', 'commit-2', 'commit-3'],
       );
@@ -474,7 +460,7 @@ describe('runAutoresearch', () => {
       await runAutoresearch(
         await parseAutoresearchManifest(
           JSON.stringify({
-            editableGlobs: ['packages/agent-core/src/*.ts', 'packages/agent-core/test/*.ts'],
+            editableGlobs: ['packages/agent/src/*.ts', 'packages/agent/test/*.ts'],
             evaluation: {
               rankOrder: [{ direction: 'higher', metric: 'score', sourceId: 'focused_tests' }],
               sources: [
@@ -527,7 +513,7 @@ describe('runAutoresearch', () => {
 
       expect(prompts).toHaveLength(3);
       expect(prompts[2]).toContain('Prioritize fixing persistent required evaluation failures');
-      expect(prompts[2]).toContain('packages/agent-core/src/system-prompt.ts (2x)');
+      expect(prompts[2]).toContain('packages/agent/src/system-prompt.ts (2x)');
       expect(prompts[2]).toContain('repeated_recent_edit_hotspots=');
     } finally {
       await rm(repoRoot, { force: true, recursive: true });

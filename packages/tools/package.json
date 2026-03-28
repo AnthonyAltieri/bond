@@ -1,0 +1,17 @@
+{
+  "name": "@bond/tools",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./plan": "./src/plan.ts",
+    "./runtime": "./src/types.ts",
+    "./shell": "./src/shell.ts",
+    "./types": "./src/types.ts",
+    "./toolsets": "./src/toolsets/index.ts"
+  },
+  "scripts": {
+    "test": "bun test",
+    "lint": "bunx oxlint src test"
+  }
+}

@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import { mkdir, readFile, readdir, rm } from 'node:fs/promises';
 
-import { AgentSession, OpenAIResponsesClient } from '@bond/agent-core';
+import { AgentSession, OpenAIResponsesClient } from '@bond/agent';
 import { runEvalCase } from '@bond/evals';
 import { OpenAIJudgeProvider } from '@bond/judges';
-import { createShellTool } from '@bond/tool-shell';
+import { createShellTool } from '@bond/tools/shell';
 
 const apiKey = process.env.OPENAI_API_KEY;
 const model = process.env.OPENAI_MODEL ?? 'gpt-5.4';

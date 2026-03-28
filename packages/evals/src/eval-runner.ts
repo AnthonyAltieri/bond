@@ -1,7 +1,7 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 
-import { AgentSession, type ModelClient, type PlanSnapshot, type Tool } from '@bond/agent-core';
+import { AgentSession, type ModelClient, type PlanSnapshot, type Tool } from '@bond/agent';
 import {
   ARCHITECTURE_CRITIC,
   CORRECTNESS_CRITIC,
