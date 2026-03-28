@@ -8,11 +8,11 @@ export {
 } from './conversation-state.ts';
 export { createAsyncQueue } from './async-queue.ts';
 export { buildPromptScaffold } from './prompt-scaffold.ts';
-export { buildPrompt } from './prompt-builder/builder.ts';
+export { buildRequest } from './request-builder/builder.ts';
 export { OpenAIResponsesClient } from './responses-client.ts';
-export { buildSystemPrompt, DEFAULT_SYSTEM_PROMPT } from './system-prompt.ts';
-export type { PromptScaffoldError } from './prompt-builder/errors.ts';
-export type { PromptSectionContext } from './prompt-builder/types.ts';
+export { buildSystemPrompt, DEFAULT_SYSTEM_PROMPT } from './request-builder/system-prompt.ts';
+export type { PromptScaffoldError } from './request-builder/errors.ts';
+export type { PromptSectionContext } from './request-builder/types.ts';
 export type {
   AgentEvent,
   AgentRunResult,

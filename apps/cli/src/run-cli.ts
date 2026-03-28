@@ -98,12 +98,12 @@ export async function runCli(argv: string[], dependencies: CliDependencies = {})
 }
 
 async function agentLoop(context: CliContext, session: AgentSessionLike): Promise<void> {
-  const promptReader = createPromptReader(context.stdin, context.stdout);
+  const reader = createUserInputReader(context.stdin, context.stdout);
   context.stdout.write('Interactive mode. Type "exit" or "quit" to leave.\n');
 
   try {
     while (true) {
-      const prompt = await getUserInput(promptReader);
+      const prompt = await getUserInput(reader);
 
       if (prompt === undefined || isExitPrompt(prompt)) {
         break;
@@ -116,7 +116,7 @@ async function agentLoop(context: CliContext, session: AgentSessionLike): Promis
       await runAgentTurn(context, session, prompt);
     }
   } finally {
-    promptReader.close();
+    reader.close();
   }
 }
 
@@ -192,7 +192,7 @@ function createCliContext(dependencies: CliDependencies): CliContext {
   };
 }
 
-function createPromptReader(
+function createUserInputReader(
   stdin: ReadableStream,
   stdout: Pick<WritableStream, 'write'>,
 ): PromptReader {

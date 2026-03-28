@@ -14,7 +14,7 @@ import type { ResponseInputItem } from '../types.ts';
 
 export const DEFAULT_MAX_REPO_INSTRUCTIONS_CHARS = 32 * 1024;
 
-export function buildPrompt(
+export function buildRequest(
   context: PromptSectionContext,
   nextUserMessage?: PromptUserMessage,
 ): Result<ResponseInputItem[], PromptScaffoldError> {
@@ -22,10 +22,10 @@ export function buildPrompt(
     createAgentIdentityPrompt(),
     createToolGuidancePrompt(context),
     createAgentMemoryPrompt(),
-    createSkillsPrompt(),
     createAgentsMdPrompt(context),
     createExecutionContextPrompt(context),
     createConversationHistoryPrompt(context),
+    createSkillsPrompt(),
     createUserInputPrompt(nextUserMessage),
   ];
 
