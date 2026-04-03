@@ -19,8 +19,10 @@ export type {
 } from './types.ts';
 export {
   createDefaultToolServices,
+  type AgentCompletion,
   type AgentInputItem,
   type AgentManager,
+  type AgentParentContext,
   type AgentStatus,
   type CloseAgentResult,
   type ExecCommandRequest,

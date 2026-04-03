@@ -93,7 +93,7 @@ function toLikePattern(query: string): string {
   return `%${escaped}%`;
 }
 
-export const SqliteMemoryStorage: MemoryStorage = {
+export const SqliteMemoryStorage: MemoryStorage<{ dbPath?: string }> = {
   async initialize(options?: { overwrite?: boolean; dbPath?: string }) {
     const requestedPath = options?.dbPath ?? DEFAULT_DB_PATH;
     const path = await ensureParentDir(requestedPath);

@@ -102,6 +102,7 @@ export interface ModelTurnParams {
   input: ResponseInputItem[];
   instructions: string;
   model: string;
+  reasoningEffort?: string;
   tools: ToolDefinition[];
 }
 
@@ -122,6 +123,19 @@ export interface ModelClient {
 
 export type AgentStopReason = 'completed' | 'max_steps';
 
+export interface AgentToolTraceEntry {
+  callId: string;
+  inputText: string;
+  kind: 'custom' | 'function';
+  name: string;
+  summary: string;
+}
+
+export interface AgentSessionSnapshot {
+  conversationItems: ResponseInputItem[];
+  currentPlan?: PlanSnapshot;
+}
+
 export interface AgentRunResult {
   compactionsUsed: number;
   finalText: string;
@@ -129,6 +143,7 @@ export interface AgentRunResult {
   plan?: PlanSnapshot;
   stepsUsed: number;
   stopReason: AgentStopReason;
+  toolTrace: AgentToolTraceEntry[];
 }
 
 export type AgentEvent =

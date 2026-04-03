@@ -1,3 +1,4 @@
+import type { PlanSnapshot } from './plan.ts';
 import type { JsonSchema, Tool, ToolExecutionResult } from './types.ts';
 import { createDefaultToolServices, type AgentInputItem, type ToolServices } from './services.ts';
 import {
@@ -11,7 +12,8 @@ import {
 export function createSpawnAgentTool(fallbackServices?: Partial<ToolServices>): Tool {
   return {
     definition: {
-      description: 'Spawn a sub-agent for a well-scoped task.',
+      description:
+        'Spawn a child agent for a narrow task, especially independent work that can run in parallel with the main thread. Use this when the user asks for subagents, delegation, or parallelized work.',
       inputSchema: createAgentInputSchema(true),
       kind: 'function',
       name: 'functions.spawn_agent',
@@ -25,15 +27,25 @@ export function createSpawnAgentTool(fallbackServices?: Partial<ToolServices>): 
         items: parseAgentItems(input),
         message: getOptionalString(input, 'message'),
         model: getOptionalString(input, 'model'),
+        parent_context: context.sessionSnapshot
+          ? {
+              conversation_items: context.sessionSnapshot.conversationItems,
+              current_plan: isPlanSnapshotLike(context.sessionSnapshot.currentPlan)
+                ? context.sessionSnapshot.currentPlan
+                : undefined,
+            }
+          : undefined,
         reasoning_effort: getOptionalString(input, 'reasoning_effort'),
         task_name: getOptionalString(input, 'task_name'),
       });
 
-      return formatAgentToolResult('functions.spawn_agent', {
-        agent_id: result.agentId,
-        nickname: result.nickname,
-        task_name: result.taskName,
-      });
+      return formatAgentToolResult(
+        'functions.spawn_agent',
+        { agent_id: result.agentId, nickname: result.nickname, task_name: result.taskName },
+        result.agentId
+          ? `agent=${result.agentId}${result.taskName ? ` task=${result.taskName}` : ''}`
+          : 'agent=none',
+      );
     },
     async *stream(inputText, context) {
       yield* [];
@@ -45,7 +57,8 @@ export function createSpawnAgentTool(fallbackServices?: Partial<ToolServices>): 
 export function createSendInputTool(fallbackServices?: Partial<ToolServices>): Tool {
   return {
     definition: {
-      description: 'Send a message to an existing agent.',
+      description:
+        'Send follow-up input to an existing child agent so you can refine or extend its task without spawning a duplicate.',
       inputSchema: createAgentInputSchema(false),
       kind: 'function',
       name: 'functions.send_input',
@@ -66,7 +79,11 @@ export function createSendInputTool(fallbackServices?: Partial<ToolServices>): T
         target,
       });
 
-      return formatAgentToolResult('functions.send_input', { submission_id: result.submissionId });
+      return formatAgentToolResult(
+        'functions.send_input',
+        { submission_id: result.submissionId },
+        `submission=${result.submissionId}`,
+      );
     },
     async *stream(inputText, context) {
       yield* [];
@@ -77,7 +94,7 @@ export function createSendInputTool(fallbackServices?: Partial<ToolServices>): T
 
 export function createResumeAgentTool(fallbackServices?: Partial<ToolServices>): Tool {
   return createSimpleAgentTool({
-    description: 'Resume a previously closed agent by id.',
+    description: 'Resume a previously closed child agent by id so it can accept more work.',
     name: 'functions.resume_agent',
     run: async (input, services) => {
       const id = getOptionalString(input, 'id');
@@ -89,6 +106,7 @@ export function createResumeAgentTool(fallbackServices?: Partial<ToolServices>):
       return formatAgentToolResult(
         'functions.resume_agent',
         await services.agentManager.resumeAgent(id),
+        `agent=${id}`,
       );
     },
     fallbackServices,
@@ -97,7 +115,8 @@ export function createResumeAgentTool(fallbackServices?: Partial<ToolServices>):
 
 export function createWaitAgentTool(fallbackServices?: Partial<ToolServices>): Tool {
   return createSimpleAgentTool({
-    description: 'Wait for agents to reach a final status.',
+    description:
+      'Wait for child agents to reach a final status when the main thread is blocked on their result, so you can gather their exploration or implementation output back into the main thread.',
     name: 'functions.wait_agent',
     run: async (input, services) => {
       const targetsValue = getOptionalArray(input, 'targets');
@@ -120,6 +139,7 @@ export function createWaitAgentTool(fallbackServices?: Partial<ToolServices>): T
           targets,
           timeoutMs: getOptionalNumber(input, 'timeout_ms'),
         }),
+        `targets=${targets.length}`,
       );
     },
     fallbackServices,
@@ -128,7 +148,7 @@ export function createWaitAgentTool(fallbackServices?: Partial<ToolServices>): T
 
 export function createCloseAgentTool(fallbackServices?: Partial<ToolServices>): Tool {
   return createSimpleAgentTool({
-    description: 'Close an agent and return its previous status.',
+    description: 'Close a child agent that is no longer needed and return its previous status.',
     name: 'functions.close_agent',
     run: async (input, services) => {
       const target = getOptionalString(input, 'target');
@@ -140,6 +160,7 @@ export function createCloseAgentTool(fallbackServices?: Partial<ToolServices>): 
       return formatAgentToolResult(
         'functions.close_agent',
         await services.agentManager.closeAgent(target),
+        `agent=${target}`,
       );
     },
     fallbackServices,
@@ -220,12 +241,12 @@ function mergeToolServices(
   return { ...createDefaultToolServices(fallbackServices), ...contextServices };
 }
 
-function formatAgentToolResult(name: string, value: unknown): ToolExecutionResult {
+function formatAgentToolResult(name: string, value: unknown, summary = name): ToolExecutionResult {
   return {
     content: JSON.stringify(value, null, 2),
     metadata: value && typeof value === 'object' && !Array.isArray(value) ? value : undefined,
     name,
-    summary: name,
+    summary,
   };
 }
 
@@ -263,4 +284,25 @@ function parseAgentItems(source: Record<string, unknown>): AgentInputItem[] | un
       type,
     };
   });
+}
+
+function isPlanSnapshotLike(value: unknown): value is PlanSnapshot {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    Array.isArray(Reflect.get(value, 'steps')) &&
+    (Reflect.get(value, 'explanation') === undefined ||
+      typeof Reflect.get(value, 'explanation') === 'string') &&
+    (Reflect.get(value, 'steps') as unknown[]).every(
+      (entry) =>
+        entry &&
+        typeof entry === 'object' &&
+        !Array.isArray(entry) &&
+        typeof Reflect.get(entry, 'step') === 'string' &&
+        (Reflect.get(entry, 'status') === 'pending' ||
+          Reflect.get(entry, 'status') === 'in_progress' ||
+          Reflect.get(entry, 'status') === 'completed'),
+    )
+  );
 }

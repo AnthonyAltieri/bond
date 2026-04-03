@@ -25,4 +25,31 @@ describe('createLocalToolset', () => {
       'multi_tool_use.parallel',
     ]);
   });
+
+  test('describes spawn and wait tools as the subagent workflow surface', () => {
+    const toolset = createLocalToolset();
+    const spawnTool = toolset.find((tool) => tool.definition.name === 'functions.spawn_agent');
+    const waitTool = toolset.find((tool) => tool.definition.name === 'functions.wait_agent');
+    const execTool = toolset.find((tool) => tool.definition.name === 'functions.exec_command');
+    const stdinTool = toolset.find((tool) => tool.definition.name === 'functions.write_stdin');
+    const patchTool = toolset.find((tool) => tool.definition.name === 'functions.apply_patch');
+    const imageTool = toolset.find((tool) => tool.definition.name === 'functions.view_image');
+    const shellTool = toolset.find((tool) => tool.definition.name === 'shell');
+
+    expect(spawnTool?.definition.description).toContain(
+      'Use this when the user asks for subagents, delegation, or parallelized work.',
+    );
+    expect(waitTool?.definition.description).toContain(
+      'so you can gather their exploration or implementation output back into the main thread.',
+    );
+    expect(execTool?.definition.description).toContain('persistent or interactive process');
+    expect(stdinTool?.definition.description).toContain(
+      'continue the same live process instead of restarting it',
+    );
+    expect(patchTool?.definition.description).toContain('instead of shell-based file rewriting');
+    expect(imageTool?.definition.description).toContain('inspect its visual contents directly');
+    expect(shellTool?.definition.description).toContain(
+      'Prefer this for quick one-shot inspection or execution when no more specialized tool fits',
+    );
+  });
 });

@@ -10,7 +10,12 @@ import type {
 export class ConversationState {
   private conversationItems: ResponseInputItem[] = [];
 
-  constructor(private readonly scaffoldItems: ResponseInputItem[]) {}
+  constructor(
+    private readonly scaffoldItems: ResponseInputItem[],
+    initialConversationItems: ResponseInputItem[] = [],
+  ) {
+    this.conversationItems = structuredClone(initialConversationItems);
+  }
 
   appendResponseItems(items: ResponseInputItem[]): void {
     this.conversationItems.push(...items);
@@ -35,8 +40,12 @@ export class ConversationState {
     this.conversationItems.push(item);
   }
 
+  appendUserInput(message: ResponseMessageItem): void {
+    this.conversationItems.push(structuredClone(message));
+  }
+
   appendUserMessage(text: string): void {
-    this.conversationItems.push(createUserMessage(text));
+    this.appendUserInput(createUserMessage(text));
   }
 
   canCompact(): boolean {

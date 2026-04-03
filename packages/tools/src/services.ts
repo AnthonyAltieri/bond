@@ -1,3 +1,5 @@
+import type { PlanSnapshot } from './plan.ts';
+
 export interface ExecCommandRequest {
   cmd: string;
   login?: boolean;
@@ -79,12 +81,18 @@ export interface AgentInputItem {
   type?: 'image' | 'local_image' | 'mention' | 'skill' | 'text';
 }
 
+export interface AgentParentContext {
+  conversation_items: unknown[];
+  current_plan?: PlanSnapshot;
+}
+
 export interface SpawnAgentRequest {
   agent_type?: string;
   fork_context?: boolean;
   items?: AgentInputItem[];
   message?: string;
   model?: string;
+  parent_context?: AgentParentContext;
   reasoning_effort?: string;
   task_name?: string;
 }
@@ -106,12 +114,25 @@ export interface SendAgentInputResult {
   submissionId: string;
 }
 
+export interface AgentToolUsageSummary {
+  call_counts: Record<string, number>;
+  used_tools: string[];
+}
+
+export interface AgentCompletion {
+  final_text: string | null;
+  plan?: PlanSnapshot;
+  stop_reason: 'completed' | 'max_steps';
+  steps_used: number;
+  tool_usage: AgentToolUsageSummary;
+}
+
 export type AgentStatus =
   | 'not_found'
   | 'pending_init'
   | 'running'
   | 'shutdown'
-  | { completed: string | null }
+  | { completed: AgentCompletion }
   | { errored: string };
 
 export interface ResumeAgentResult {

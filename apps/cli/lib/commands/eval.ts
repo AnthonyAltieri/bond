@@ -12,9 +12,9 @@ import {
   type RunEvalManifestOptions,
 } from '@bond/evals';
 import { OpenAIJudgeProvider } from '@bond/judges';
-import { createLocalToolset } from '@bond/tools';
 
 import type { EvalCliConfig } from '../config/config.ts';
+import { createToolEnvironment } from '../session.ts';
 import type { CliContext } from '../terminal/context.ts';
 
 export type EvalCommandContext = Pick<CliContext, 'stderr' | 'stdout'>;
@@ -45,16 +45,25 @@ export async function runEvalCommand(
     resolve(config.cwd, config.manifestPath),
   );
   const manifest = await parseEvalManifest(manifestSource);
+  const client = new OpenAIResponsesClient({ apiKey: config.apiKey, baseUrl: config.baseUrl });
+  const environment = createToolEnvironment({
+    client,
+    commandTimeoutMs: config.commandTimeoutMs,
+    cwd: config.cwd,
+    model: config.model,
+    shell: config.shell,
+  });
   const reports = await (dependencies.runManifest ?? defaultRunManifest)(manifest, {
     caseIds: config.selectedCaseId ? [config.selectedCaseId] : undefined,
-    client: new OpenAIResponsesClient({ apiKey: config.apiKey, baseUrl: config.baseUrl }),
+    client,
     commandTimeoutMs: config.commandTimeoutMs,
     judgeModels: config.judgeModels,
     judgeProvider: new OpenAIJudgeProvider({ apiKey: config.apiKey, baseUrl: config.baseUrl }),
     model: config.model,
     repoRoot: config.cwd,
     shell: config.shell,
-    tools: createLocalToolset(),
+    toolServices: environment.toolServices,
+    tools: environment.tools,
   });
 
   for (const report of reports) {

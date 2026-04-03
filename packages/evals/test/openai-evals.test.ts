@@ -85,7 +85,10 @@ describe('basic OpenAI loop evals', () => {
             workingDirectoryMode: 'temp-empty',
           },
           {
-            client: new OpenAIResponsesClient({ apiKey, baseUrl: process.env.OPENAI_BASE_URL }),
+            client: new OpenAIResponsesClient({
+              apiKey: apiKey ?? '',
+              baseUrl: process.env.OPENAI_BASE_URL,
+            }),
             judgeModels: {
               architecture: architectureJudgeModel,
               correctness:
@@ -96,10 +99,10 @@ describe('basic OpenAI loop evals', () => {
               simplicity: simplicityJudgeModel,
             },
             judgeProvider: new OpenAIJudgeProvider({
-              apiKey,
+              apiKey: apiKey ?? '',
               baseUrl: process.env.OPENAI_BASE_URL,
             }),
-            model,
+            model: model ?? 'gpt-5.4',
             repoRoot: tempRoot,
             tools: [createShellTool()],
           },

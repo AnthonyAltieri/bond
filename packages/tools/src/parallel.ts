@@ -6,6 +6,7 @@ const ALLOWED_PARALLEL_TOOLS = new Set([
   'functions.list_mcp_resource_templates',
   'functions.list_mcp_resources',
   'functions.read_mcp_resource',
+  'functions.spawn_agent',
   'functions.update_plan',
   'functions.view_image',
   'multi_tool_use.parallel',
@@ -18,7 +19,8 @@ export function createParallelTool(tools: Tool[]): Tool {
 
   return {
     definition: {
-      description: 'Run multiple developer tools in parallel when it is safe to do so.',
+      description:
+        'Run multiple developer tools in parallel when it is safe to do so. Prefer this when multiple allowed inspection calls are known up front, and use it directly when a task asks for a single parallel wrapper step instead of separate underlying calls.',
       inputSchema: {
         additionalProperties: false,
         properties: {

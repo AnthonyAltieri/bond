@@ -34,7 +34,10 @@ describe('SqliteMemoryStorage', () => {
   test('returns StorageNotFound when used before initialization', () => {
     const result = SqliteMemoryStorage.search('anything');
 
-    expect(isErr(result)).toBe(true);
+    if (!isErr(result)) {
+      throw new Error('expected StorageNotFound result');
+    }
+
     expect(result.error).toBeInstanceOf(StorageNotFound);
   });
 
@@ -58,11 +61,17 @@ describe('SqliteMemoryStorage', () => {
     expect(isOk(addBetaResult)).toBe(true);
 
     const textSearch = SqliteMemoryStorage.search('deployment');
-    expect(isOk(textSearch)).toBe(true);
+    if (!isOk(textSearch)) {
+      throw textSearch.error;
+    }
+
     expect(textSearch.value).toEqual([alpha]);
 
     const tagSearch = SqliteMemoryStorage.search('planning');
-    expect(isOk(tagSearch)).toBe(true);
+    if (!isOk(tagSearch)) {
+      throw tagSearch.error;
+    }
+
     expect(tagSearch.value).toEqual([beta]);
   });
 
@@ -74,15 +83,24 @@ describe('SqliteMemoryStorage', () => {
     SqliteMemoryStorage.add(item);
 
     const removeResult = SqliteMemoryStorage.remove(item.id);
-    expect(isOk(removeResult)).toBe(true);
+    if (!isOk(removeResult)) {
+      throw removeResult.error;
+    }
+
     expect(removeResult.value).toEqual(item);
 
     const secondRemoveResult = SqliteMemoryStorage.remove(item.id);
-    expect(isOk(secondRemoveResult)).toBe(true);
+    if (!isOk(secondRemoveResult)) {
+      throw secondRemoveResult.error;
+    }
+
     expect(secondRemoveResult.value).toBeNull();
 
     const searchResult = SqliteMemoryStorage.search('');
-    expect(isOk(searchResult)).toBe(true);
+    if (!isOk(searchResult)) {
+      throw searchResult.error;
+    }
+
     expect(searchResult.value).toEqual([]);
   });
 
@@ -95,7 +113,10 @@ describe('SqliteMemoryStorage', () => {
     expect(isOk(overwriteResult)).toBe(true);
 
     const searchResult = SqliteMemoryStorage.search('');
-    expect(isOk(searchResult)).toBe(true);
+    if (!isOk(searchResult)) {
+      throw searchResult.error;
+    }
+
     expect(searchResult.value).toEqual([]);
   });
 
@@ -105,16 +126,25 @@ describe('SqliteMemoryStorage', () => {
     SqliteMemoryStorage.add(createMemoryItem('alpha', 'to be deleted', ['cleanup']));
 
     const firstDelete = SqliteMemoryStorage.delete();
-    expect(isOk(firstDelete)).toBe(true);
+    if (!isOk(firstDelete)) {
+      throw firstDelete.error;
+    }
+
     expect(firstDelete.value).toBe(true);
     expect(existsSync(dbPath)).toBe(false);
 
     const secondDelete = SqliteMemoryStorage.delete();
-    expect(isOk(secondDelete)).toBe(true);
+    if (!isOk(secondDelete)) {
+      throw secondDelete.error;
+    }
+
     expect(secondDelete.value).toBe(false);
 
     const searchResult = SqliteMemoryStorage.search('deleted');
-    expect(isErr(searchResult)).toBe(true);
+    if (!isErr(searchResult)) {
+      throw new Error('expected StorageNotFound result');
+    }
+
     expect(searchResult.error).toBeInstanceOf(StorageNotFound);
   });
 });

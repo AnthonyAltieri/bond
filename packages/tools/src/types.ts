@@ -42,6 +42,11 @@ export type ToolOutputContentItem =
 
 export type ToolCallOutput = string | ToolOutputContentItem[];
 
+export interface ToolExecutionSessionSnapshot {
+  conversationItems: unknown[];
+  currentPlan?: unknown;
+}
+
 export interface ToolDefinitionBase {
   description: string;
   name: string;
@@ -75,6 +80,7 @@ export interface ToolExecutionContext {
   callId: string;
   cwd: string;
   defaultTimeoutMs: number;
+  sessionSnapshot?: ToolExecutionSessionSnapshot;
   shell: string;
   services?: ToolServices;
   workspaceRoot: string;

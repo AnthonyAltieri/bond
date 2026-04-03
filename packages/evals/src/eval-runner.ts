@@ -1,7 +1,15 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
+import { randomUUID } from 'node:crypto';
 
-import { AgentSession, type ModelClient, type PlanSnapshot, type Tool } from '@bond/agent';
+import {
+  AgentSession,
+  type AgentToolTraceEntry,
+  type ModelClient,
+  type PlanSnapshot,
+  type ResponseInputItem,
+  type Tool,
+} from '@bond/agent';
 import {
   ARCHITECTURE_CRITIC,
   CORRECTNESS_CRITIC,
@@ -14,6 +22,7 @@ import {
   type JudgeProvider,
   runJudgeEnsemble,
 } from '@bond/judges';
+import type { ToolServices } from '@bond/tools';
 import { z } from 'zod';
 
 const DEFAULT_TEMP_ROOT = '/tmp';
@@ -39,8 +48,32 @@ const EvalCaseSchema = z.object({
   finalResponse: EvalFinalResponseMatcherSchema.optional(),
   id: z.string().min(1),
   maxSteps: z.number().int().positive().optional(),
+  minSteps: z.number().int().positive().optional(),
   objectiveChecks: z.array(EvalObjectiveCheckSpecSchema).default([]),
   prompt: z.string().min(1),
+  requiredTools: z.array(z.string().min(1)).default([]),
+  toolUsageChecks: z
+    .array(
+      z.discriminatedUnion('type', [
+        z.object({
+          name: z.string().min(1),
+          tools: z.array(z.string().min(1)).min(1),
+          type: z.literal('all_of'),
+        }),
+        z.object({
+          name: z.string().min(1),
+          tools: z.array(z.string().min(1)).min(1),
+          type: z.literal('any_of'),
+        }),
+        z.object({
+          minCalls: z.number().int().positive(),
+          name: z.string().min(1),
+          tool: z.string().min(1),
+          type: z.literal('min_calls'),
+        }),
+      ]),
+    )
+    .default([]),
   workingDirectoryMode: z.enum(['repo', 'temp-empty']).default('repo'),
 });
 
@@ -50,8 +83,10 @@ const EvalManifestSchema = z.object({
 });
 
 export type EvalCase = z.infer<typeof EvalCaseSchema>;
+export type EvalCaseInput = z.input<typeof EvalCaseSchema>;
 export type EvalFinalResponseMatcher = z.infer<typeof EvalFinalResponseMatcherSchema>;
 export type EvalManifest = z.infer<typeof EvalManifestSchema>;
+export type EvalManifestInput = z.input<typeof EvalManifestSchema>;
 export type EvalObjectiveCheckSpec = z.infer<typeof EvalObjectiveCheckSpecSchema>;
 
 export interface EvalJudgeModels {
@@ -89,13 +124,21 @@ export interface EvalRunReport {
   objectiveChecks: EvalObjectiveCheckResult[];
   objectivePassed: boolean;
   overallPassed: boolean;
+  runId: string;
   startedAt: string;
   status: {
     compactionsUsed: number;
     plan?: PlanSnapshot;
     stopReason: 'completed' | 'max_steps';
     stepsUsed: number;
+    toolTrace: AgentToolTraceEntry[];
+    toolUsage: EvalToolUsageSummary;
   };
+}
+
+export interface EvalToolUsageSummary {
+  callCounts: Record<string, number>;
+  usedTools: string[];
 }
 
 export interface RunEvalCaseOptions {
@@ -107,6 +150,7 @@ export interface RunEvalCaseOptions {
   repoRoot: string;
   shell?: string;
   tempRoot?: string;
+  toolServices?: Partial<ToolServices>;
   tools: Tool[];
 }
 
@@ -119,7 +163,7 @@ export async function parseEvalManifest(source: string): Promise<EvalManifest> {
 }
 
 export async function runEvalManifest(
-  manifest: EvalManifest,
+  manifest: EvalManifestInput,
   options: RunEvalManifestOptions,
 ): Promise<EvalRunReport[]> {
   const normalizedManifest = EvalManifestSchema.parse(manifest);
@@ -142,12 +186,13 @@ export async function runEvalManifest(
 }
 
 export async function runEvalCase(
-  entry: EvalCase,
+  entry: EvalCaseInput,
   options: RunEvalCaseOptions,
 ): Promise<EvalRunReport> {
   const normalizedEntry = EvalCaseSchema.parse(entry);
   const startedAt = new Date().toISOString();
   const startedMs = Date.now();
+  const runId = randomUUID();
   const shell = options.shell ?? 'sh';
   const baseWorkspace =
     normalizedEntry.workingDirectoryMode === 'repo'
@@ -155,38 +200,54 @@ export async function runEvalCase(
       : await createTempDir(options.tempRoot ?? DEFAULT_TEMP_ROOT);
 
   try {
+    const renderedEntry = renderEvalCaseTemplates(normalizedEntry, { runId });
     const session = new AgentSession({
       client: options.client,
-      commandTimeoutMs: normalizedEntry.commandTimeoutMs ?? options.commandTimeoutMs,
+      commandTimeoutMs: renderedEntry.commandTimeoutMs ?? options.commandTimeoutMs,
       cwd: baseWorkspace,
-      maxSteps: normalizedEntry.maxSteps,
+      maxSteps: renderedEntry.maxSteps,
       model: options.model,
+      toolServices: options.toolServices,
       shell,
       tools: options.tools,
     });
-    const agentResult = await session.run(normalizedEntry.prompt);
+    const agentResult = await session.run(renderedEntry.prompt);
+    const toolUsage = summarizeToolUsage(agentResult.inputItems, agentResult.toolTrace);
     const finalResponseCheck = evaluateFinalResponse(
-      normalizedEntry.finalResponse,
+      renderedEntry.finalResponse,
       agentResult.finalText,
     );
+    const minStepsCheck = evaluateMinSteps(renderedEntry.minSteps, agentResult.stepsUsed);
+    const requiredToolsCheck = evaluateRequiredTools(renderedEntry.requiredTools, toolUsage);
+    const toolUsageChecks = evaluateToolUsageChecks(renderedEntry.toolUsageChecks, toolUsage);
     const objectiveCheckResults = await Promise.all(
-      normalizedEntry.objectiveChecks.map((check) =>
+      renderedEntry.objectiveChecks.map((check) =>
         runObjectiveCheck(check, {
           cwd: baseWorkspace,
           shell,
-          timeoutMs: normalizedEntry.commandTimeoutMs ?? options.commandTimeoutMs,
+          timeoutMs: renderedEntry.commandTimeoutMs ?? options.commandTimeoutMs,
         }),
       ),
     );
-    const allObjectiveChecks = finalResponseCheck
-      ? [finalResponseCheck, ...objectiveCheckResults]
-      : objectiveCheckResults;
-    const capturedFiles = await captureArtifacts(baseWorkspace, normalizedEntry.capturePaths);
+    const allObjectiveChecks = [
+      ...(finalResponseCheck ? [finalResponseCheck] : []),
+      ...(minStepsCheck ? [minStepsCheck] : []),
+      ...(requiredToolsCheck ? [requiredToolsCheck] : []),
+      ...toolUsageChecks,
+      ...objectiveCheckResults,
+    ];
+    const capturedFiles = await captureArtifacts(baseWorkspace, renderedEntry.capturePaths);
     const judges = await runJudgeEnsemble(
       options.judgeProvider,
       {
         changedFiles: capturedFiles,
-        executionSummary: buildExecutionSummary(baseWorkspace, normalizedEntry, agentResult),
+        executionSummary: buildExecutionSummary(
+          baseWorkspace,
+          renderedEntry,
+          runId,
+          agentResult,
+          toolUsage,
+        ),
         finalResponse: agentResult.finalText,
         objectiveChecks: allObjectiveChecks.map((check) => ({
           category: check.category,
@@ -194,7 +255,7 @@ export async function runEvalCase(
           name: check.name,
           passed: check.passed,
         })),
-        taskPrompt: normalizedEntry.prompt,
+        taskPrompt: renderedEntry.prompt,
       },
       [
         { model: options.judgeModels.architecture, spec: ARCHITECTURE_CRITIC },
@@ -222,12 +283,15 @@ export async function runEvalCase(
       objectiveChecks: allObjectiveChecks,
       objectivePassed,
       overallPassed: objectivePassed && judges.passed,
+      runId,
       startedAt,
       status: {
         compactionsUsed: agentResult.compactionsUsed,
         plan: agentResult.plan,
         stepsUsed: agentResult.stepsUsed,
         stopReason: agentResult.stopReason,
+        toolTrace: agentResult.toolTrace,
+        toolUsage,
       },
     };
   } finally {
@@ -261,15 +325,50 @@ export async function writeEvalReport(path: string, report: EvalRunReport): Prom
 function buildExecutionSummary(
   cwd: string,
   entry: EvalCase,
+  runId: string,
   result: { compactionsUsed: number; stopReason: 'completed' | 'max_steps'; stepsUsed: number },
+  toolUsage: EvalToolUsageSummary,
 ): string {
   return [
     `workspace=${cwd}`,
+    `runId=${runId}`,
     `workingDirectoryMode=${entry.workingDirectoryMode}`,
     `stopReason=${result.stopReason}`,
     `stepsUsed=${result.stepsUsed}`,
     `compactionsUsed=${result.compactionsUsed}`,
+    `usedTools=${toolUsage.usedTools.join(',') || '(none)'}`,
+    `toolCallCounts=${JSON.stringify(toolUsage.callCounts)}`,
   ].join('\n');
+}
+
+function renderEvalCaseTemplates(entry: EvalCase, context: { runId: string }): EvalCase {
+  return {
+    ...entry,
+    capturePaths: entry.capturePaths.map((pattern, index) =>
+      renderTemplateString(pattern, context, `capturePaths[${index}]`),
+    ),
+    objectiveChecks: entry.objectiveChecks.map((check, index) => ({
+      ...check,
+      command: renderTemplateString(check.command, context, `objectiveChecks[${index}].command`),
+    })),
+    prompt: renderTemplateString(entry.prompt, context, 'prompt'),
+  };
+}
+
+function renderTemplateString(
+  value: string,
+  context: { runId: string },
+  fieldPath: string,
+): string {
+  return value.replaceAll(/{{\s*([^}]+?)\s*}}/g, (match, rawToken: string) => {
+    const token = rawToken.trim();
+
+    if (token === 'runId') {
+      return context.runId;
+    }
+
+    throw new Error(`Unknown eval template token "${token}" in ${fieldPath}: ${match}`);
+  });
 }
 
 async function captureArtifacts(cwd: string, patterns: string[]): Promise<ChangedFileArtifact[]> {
@@ -279,6 +378,7 @@ async function captureArtifacts(cwd: string, patterns: string[]): Promise<Change
     for await (const match of new Bun.Glob(pattern).scan({
       absolute: false,
       cwd,
+      dot: true,
       onlyFiles: true,
     })) {
       matches.add(match);
@@ -329,6 +429,139 @@ function evaluateFinalResponse(
     stderr: '',
     stdout: finalResponse,
   };
+}
+
+function evaluateMinSteps(
+  minSteps: number | undefined,
+  stepsUsed: number,
+): EvalObjectiveCheckResult | undefined {
+  if (minSteps === undefined) {
+    return undefined;
+  }
+
+  const passed = stepsUsed >= minSteps;
+
+  return {
+    category: 'other',
+    command: 'steps_used.minimum',
+    details: `Expected at least ${String(minSteps)} step(s); observed ${String(stepsUsed)}`,
+    exitCode: passed ? 0 : 1,
+    name: 'minimum steps',
+    passed,
+    stderr: '',
+    stdout: String(stepsUsed),
+  };
+}
+
+function evaluateRequiredTools(
+  requiredTools: string[],
+  toolUsage: EvalToolUsageSummary,
+): EvalObjectiveCheckResult | undefined {
+  if (requiredTools.length === 0) {
+    return undefined;
+  }
+
+  const missingTools = requiredTools.filter((name) => !toolUsage.usedTools.includes(name));
+  const passed = missingTools.length === 0;
+
+  return {
+    category: 'other',
+    command: 'tool_usage.required',
+    details: passed
+      ? `Observed all required tools: ${requiredTools.join(', ')}`
+      : `Missing required tools: ${missingTools.join(', ')}`,
+    exitCode: passed ? 0 : 1,
+    name: 'required tools',
+    passed,
+    stderr: '',
+    stdout: JSON.stringify({
+      callCounts: toolUsage.callCounts,
+      missingTools,
+      usedTools: toolUsage.usedTools,
+    }),
+  };
+}
+
+function summarizeToolUsage(
+  inputItems: ResponseInputItem[],
+  toolTrace: AgentToolTraceEntry[],
+): EvalToolUsageSummary {
+  const callCounts =
+    toolTrace.length > 0
+      ? toolTrace.reduce<Record<string, number>>((counts, entry) => {
+          counts[entry.name] = (counts[entry.name] ?? 0) + 1;
+          return counts;
+        }, {})
+      : inputItems.reduce<Record<string, number>>((counts, item) => {
+          if (item.type !== 'function_call' && item.type !== 'custom_tool_call') {
+            return counts;
+          }
+
+          counts[item.name] = (counts[item.name] ?? 0) + 1;
+          return counts;
+        }, {});
+  const usedTools = Object.keys(callCounts).sort((left, right) => left.localeCompare(right));
+
+  return { callCounts, usedTools };
+}
+
+function evaluateToolUsageChecks(
+  checks: EvalCase['toolUsageChecks'],
+  toolUsage: EvalToolUsageSummary,
+): EvalObjectiveCheckResult[] {
+  return checks.map((check) => {
+    switch (check.type) {
+      case 'all_of': {
+        const missingTools = check.tools.filter((tool) => !toolUsage.usedTools.includes(tool));
+        const passed = missingTools.length === 0;
+
+        return {
+          category: 'other',
+          command: `tool_usage.${check.type}`,
+          details: passed
+            ? `Observed all tools: ${check.tools.join(', ')}`
+            : `Missing tools: ${missingTools.join(', ')}`,
+          exitCode: passed ? 0 : 1,
+          name: check.name,
+          passed,
+          stderr: '',
+          stdout: JSON.stringify({ tools: check.tools, usedTools: toolUsage.usedTools }),
+        };
+      }
+      case 'any_of': {
+        const matchedTools = check.tools.filter((tool) => toolUsage.usedTools.includes(tool));
+        const passed = matchedTools.length > 0;
+
+        return {
+          category: 'other',
+          command: `tool_usage.${check.type}`,
+          details: passed
+            ? `Observed one of: ${matchedTools.join(', ')}`
+            : `Observed none of: ${check.tools.join(', ')}`,
+          exitCode: passed ? 0 : 1,
+          name: check.name,
+          passed,
+          stderr: '',
+          stdout: JSON.stringify({ matchedTools, tools: check.tools }),
+        };
+      }
+      case 'min_calls': {
+        const observedCalls = toolUsage.callCounts[check.tool] ?? 0;
+        const passed = observedCalls >= check.minCalls;
+
+        return {
+          category: 'other',
+          command: `tool_usage.${check.type}`,
+          details: `Expected at least ${String(check.minCalls)} call(s) to ${check.tool}; observed ${String(observedCalls)}`,
+          exitCode: passed ? 0 : 1,
+          name: check.name,
+          passed,
+          stderr: '',
+          stdout: JSON.stringify({ observedCalls, tool: check.tool }),
+        };
+      }
+    }
+  });
 }
 
 async function runObjectiveCheck(
