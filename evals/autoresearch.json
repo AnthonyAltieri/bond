@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "pwd-once",
+      "description": "Uses the shell tool to inspect the working directory and returns the requested marker.",
+      "prompt": "Use the shell tool exactly once to run `pwd`. Then answer with one line that begins with `WORKDIR=`.",
+      "finalResponse": { "type": "contains", "value": "WORKDIR=" },
+      "workingDirectoryMode": "repo"
+    },
+    {
+      "id": "file-count-once",
+      "description": "Uses the shell tool for a fast repo inspection command and returns the requested marker.",
+      "prompt": "Use the shell tool exactly once to run `find . -maxdepth 1 -type f | wc -l`. Then answer with one line that begins with `FILE_COUNT=`.",
+      "finalResponse": { "type": "contains", "value": "FILE_COUNT=" },
+      "workingDirectoryMode": "repo"
+    }
+  ]
+}

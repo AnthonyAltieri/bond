@@ -1,0 +1,16 @@
+{
+  "name": "@bond/utils",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "bun test",
+    "lint": "bunx oxlint src test"
+  },
+  "dependencies": {
+    "@alt-stack/result": "^0.1.4",
+    "zod": "^4.3.6"
+  }
+}

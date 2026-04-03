@@ -1,6 +1,6 @@
 # bond
 
-`bond` is a deliberately small agentic CLI built with Bun. The current version stays intentionally narrow: one CLI app, one core package, one Responses API-compatible provider, and one built-in `shell` tool.
+`bond` is a deliberately small agentic CLI built with Bun. The current version stays intentionally narrow: one CLI app, a core agent runtime package, dedicated eval/judge/autoresearch packages, and a small `packages/tool-*` layer for local coding tools.
 
 ## Structure
 
@@ -10,7 +10,14 @@
 - `packages/agent-core/src/conversation-state.ts`: scaffold items, conversation items, tool outputs
 - `packages/agent-core/src/prompt-scaffold.ts`: permissions instructions, repo instructions, environment context
 - `packages/agent-core/src/compactor.ts`: summary turn, conversation replacement
-- `packages/agent-core/src/tools/shell.ts`: shell execution, stdout/stderr streaming, result summary
+- `packages/judges`: judge specs, aggregation, ensemble runner, OpenAI judge provider
+- `packages/evals`: eval manifests, eval runner, report formatting/writing
+- `packages/autoresearch`: autoresearch manifests, experiment loop, web researcher
+- `packages/tool-runtime`: shared tool contracts used by the harness and tool packages
+- `packages/tool-shell`: shell execution, stdout/stderr streaming, result summary
+- `packages/tool-registry`: default local toolset assembly for the CLI
+- `program.md` + `autoresearch.json`: self-improvement strategy and scoring contract for Bond autoresearch
+- `.autoresearch/`: untracked autoresearch run artifacts and experiment ledgers
 
 ## Requirements
 
@@ -31,6 +38,8 @@ Optional:
 export OPENAI_BASE_URL=https://api.openai.com/v1
 export OPENAI_AUTO_COMPACT_TOKENS=24000
 export OPENAI_COMPACTION_MODEL=your_compaction_model
+export OPENAI_JUDGE_MODEL=your_judge_model
+export OPENAI_JUDGE_MODEL_CORRECTNESS=your_correctness_judge_model
 ```
 
 ## Usage
@@ -52,6 +61,21 @@ Useful flags:
 ```sh
 bun run cli -- --model your_model --auto-compact-tokens 24000 --timeout 20000 --cwd packages/agent-core "inspect this package"
 ```
+
+Eval mode:
+
+```sh
+bun run cli -- eval --manifest evals/demo.json --case demo
+bun run cli -- eval --manifest evals/demo.json --all
+```
+
+Autoresearch mode:
+
+```sh
+bun run cli -- autoresearch --manifest autoresearch.json --program program.md
+```
+
+By default, autoresearch writes untracked artifacts under `.autoresearch/<tag>/`.
 
 ## Example
 
@@ -77,12 +101,13 @@ Included in v1:
 
 - stateless Responses API requests with in-memory conversation state
 - one-shot and interactive modes
+- eval runner mode with JSON manifests, objective shell checks, judge summaries, and JSON reports
+- bounded autoresearch mode for Bond self-improvement with runner-side web research, keep/discard branching, and untracked run artifacts
 - bounded tool/model loop with automatic compaction
-- one `shell` tool
+- explicit local tool packages with one `shell` tool
 
 Explicitly out of scope:
 
 - multi-provider support
-- approvals or full sandbox policy management
 - TUI features
 - background jobs or resumable sessions

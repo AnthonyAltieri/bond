@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "editableGlobs": [
+    "apps/cli/src/*.ts",
+    "apps/cli/test/*.ts",
+    "packages/agent-core/src/*.ts",
+    "packages/agent-core/test/*.ts",
+    "packages/tool-runtime/src/*.ts",
+    "packages/tool-shell/src/*.ts",
+    "packages/tool-shell/test/*.ts",
+    "packages/tool-registry/src/*.ts",
+    "packages/tool-registry/test/*.ts",
+    "evals/*.json"
+  ],
+  "captureGlobs": [
+    "apps/cli/src/*.ts",
+    "apps/cli/test/*.ts",
+    "packages/agent-core/src/*.ts",
+    "packages/agent-core/test/*.ts",
+    "evals/*.json"
+  ],
+  "webResearch": {
+    "enabled": true,
+    "maxQueriesPerExperiment": 3,
+    "domainsAllowlist": ["platform.openai.com", "openai.com", "bun.sh", "github.com"],
+    "requireSourceNotes": true
+  },
+  "evaluation": {
+    "sources": [
+      {
+        "type": "shell",
+        "id": "focused_tests",
+        "command": "bun test apps/cli/test/smoke.test.ts packages/agent-core/test/autoresearch-runner.test.ts packages/agent-core/test/eval-runner.test.ts packages/agent-core/test/judge-runner.test.ts packages/tool-shell/test/shell-tool.test.ts",
+        "required": true
+      },
+      {
+        "type": "bond_eval",
+        "id": "bond_eval",
+        "manifestPath": "evals/autoresearch.json",
+        "required": true
+      }
+    ],
+    "rankOrder": [
+      { "sourceId": "bond_eval", "metric": "overall_pass_rate", "direction": "higher" },
+      { "sourceId": "bond_eval", "metric": "avg_objective_pass_rate", "direction": "higher" },
+      { "sourceId": "bond_eval", "metric": "avg_correctness_score", "direction": "higher" },
+      { "sourceId": "bond_eval", "metric": "avg_judge_composite_score", "direction": "higher" }
+    ]
+  }
+}

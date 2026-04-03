@@ -1,6 +1,10 @@
 #!/usr/bin/env bun
 
-import { runCli } from './run-cli.ts';
+import { runCli } from '../lib/cli.ts';
 
-const exitCode = await runCli(process.argv.slice(2));
-process.exit(exitCode);
+export { runCli, type CliDependencies } from '../lib/cli.ts';
+
+if (import.meta.main) {
+  const exitCode = await runCli(process.argv.slice(2));
+  process.exit(exitCode);
+}
