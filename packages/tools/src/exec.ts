@@ -39,7 +39,8 @@ interface RunningExecSession {
 export function createExecCommandTool(fallbackServices?: Partial<ToolServices>): Tool {
   return {
     definition: {
-      description: 'Run a terminal command and return its output.',
+      description:
+        'Run a terminal command and return its output. Use this when the task implies a persistent or interactive process that you will continue through functions.write_stdin; prefer shell for quick one-shot inspection.',
       inputSchema: {
         additionalProperties: false,
         properties: {
@@ -87,7 +88,8 @@ export function createExecCommandTool(fallbackServices?: Partial<ToolServices>):
 export function createWriteStdinTool(fallbackServices?: Partial<ToolServices>): Tool {
   return {
     definition: {
-      description: 'Interact with a running terminal session created by functions.exec_command.',
+      description:
+        'Interact with a running terminal session created by functions.exec_command so you can continue the same live process instead of restarting it.',
       inputSchema: {
         additionalProperties: false,
         properties: {

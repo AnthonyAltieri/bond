@@ -10,7 +10,7 @@ import {
   type AutoresearchGitOps,
   type WebResearchResult,
 } from '@bond/autoresearch';
-import type { EvalManifest, EvalRunReport } from '@bond/evals';
+import type { EvalManifestInput, EvalRunReport } from '@bond/evals';
 
 const originalFetch = globalThis.fetch;
 
@@ -115,6 +115,7 @@ describe('runAutoresearch', () => {
               inputItems: [],
               stepsUsed: 1,
               stopReason: 'completed',
+              toolTrace: [],
             }),
           }),
           git,
@@ -187,6 +188,7 @@ describe('runAutoresearch', () => {
               inputItems: [],
               stepsUsed: 1,
               stopReason: 'completed',
+              toolTrace: [],
             }),
           }),
           git,
@@ -263,6 +265,7 @@ describe('runAutoresearch', () => {
               inputItems: [],
               stepsUsed: 1,
               stopReason: 'completed',
+              toolTrace: [],
             }),
           }),
           git,
@@ -340,6 +343,7 @@ describe('runAutoresearch', () => {
               inputItems: [],
               stepsUsed: 1,
               stopReason: 'completed',
+              toolTrace: [],
             }),
           }),
           git,
@@ -405,6 +409,7 @@ describe('runAutoresearch', () => {
               inputItems: [],
               stepsUsed: 1,
               stopReason: 'completed',
+              toolTrace: [],
             }),
           }),
           git,
@@ -504,6 +509,7 @@ describe('runAutoresearch', () => {
                 inputItems: [],
                 stepsUsed: 1,
                 stopReason: 'completed',
+                toolTrace: [],
               };
             },
           }),
@@ -524,7 +530,10 @@ describe('runAutoresearch', () => {
 describe('OpenAIWebResearcher', () => {
   test('requests a web-search-backed structured response', async () => {
     let requestBody = '';
-    globalThis.fetch = (async (_input, init) => {
+    globalThis.fetch = (async (
+      _input: Parameters<typeof fetch>[0],
+      init?: Parameters<typeof fetch>[1],
+    ) => {
       requestBody = String(init?.body ?? '');
 
       return new Response(
@@ -536,7 +545,7 @@ describe('OpenAIWebResearcher', () => {
           }),
         }),
       );
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
 
     const { OpenAIWebResearcher } = await import('@bond/autoresearch');
     const researcher = new OpenAIWebResearcher({ apiKey: 'test-key', model: 'gpt-test' });
@@ -624,7 +633,7 @@ class FakeGitOps implements AutoresearchGitOps {
   }
 }
 
-function makeEvalManifest(): EvalManifest {
+function makeEvalManifest(): EvalManifestInput {
   return {
     cases: [
       { description: 'Demo case', id: 'demo', prompt: 'Say ok', workingDirectoryMode: 'repo' },
@@ -674,8 +683,15 @@ function makeEvalReport(overallPassRate: number): EvalRunReport {
     objectiveChecks: [],
     objectivePassed: overallPassed,
     overallPassed,
+    runId: 'run-demo',
     startedAt: '2026-03-19T00:00:00.000Z',
-    status: { compactionsUsed: 0, stepsUsed: 1, stopReason: 'completed' },
+    status: {
+      compactionsUsed: 0,
+      stepsUsed: 1,
+      stopReason: 'completed',
+      toolTrace: [],
+      toolUsage: { callCounts: {}, usedTools: [] },
+    },
   };
 }
 

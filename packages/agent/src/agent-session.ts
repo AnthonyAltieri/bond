@@ -1,5 +1,5 @@
 import { unwrap } from '@alt-stack/result';
-import type { ToolServices } from '@bond/tools';
+import { createDefaultToolServices, type ToolServices } from '@bond/tools';
 
 import { compactConversation } from './compactor.ts';
 import { ConversationState, createUserMessage } from './conversation-state.ts';
@@ -9,6 +9,8 @@ import type { Tool, ToolDefinition, ToolEvent, ToolExecutionResult } from '@bond
 import type {
   AgentEvent,
   AgentRunResult,
+  AgentSessionSnapshot,
+  AgentToolTraceEntry,
   ModelClient,
   ModelTurnEvent,
   ModelTurnResult,
@@ -29,8 +31,11 @@ export interface AgentSessionOptions {
   commandTimeoutMs?: number;
   compactionModel?: string;
   cwd: string;
+  initialConversationItems?: ResponseInputItem[];
+  initialPlan?: PlanSnapshot;
   maxSteps?: number;
   model: string;
+  reasoningEffort?: string;
   shell?: string;
   systemPrompt?: string;
   toolServices?: Partial<ToolServices>;
@@ -54,6 +59,8 @@ export class AgentSession {
 
   private readonly model: string;
 
+  private readonly reasoningEffort?: string;
+
   private readonly shell: string;
 
   private readonly state: ConversationState;
@@ -61,6 +68,8 @@ export class AgentSession {
   private readonly toolServices?: ToolServices;
 
   private currentPlan?: PlanSnapshot;
+
+  private pendingInitialPlan?: PlanSnapshot;
 
   private readonly toolDefinitions: ToolDefinition[];
 
@@ -79,10 +88,14 @@ export class AgentSession {
     this.instructions = options.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
     this.maxSteps = options.maxSteps ?? DEFAULT_MAX_STEPS;
     this.model = options.model;
+    this.reasoningEffort = options.reasoningEffort;
     this.shell = options.shell ?? DEFAULT_SHELL;
-    this.toolServices = options.toolServices;
+    this.toolServices = options.toolServices
+      ? createDefaultToolServices(options.toolServices)
+      : undefined;
     this.toolDefinitions = tools.map((tool) => tool.definition);
     this.toolMap = new Map(tools.map((tool) => [tool.definition.name, tool]));
+    this.pendingInitialPlan = clonePlan(options.initialPlan);
     this.state = new ConversationState(
       unwrap(
         buildPromptScaffold({
@@ -91,11 +104,16 @@ export class AgentSession {
           toolDefinitions: this.toolDefinitions,
         }),
       ),
+      options.initialConversationItems,
     );
   }
 
   async run(prompt: string): Promise<AgentRunResult> {
-    const iterator = this.stream(prompt);
+    return await this.runMessage(createUserMessage(prompt));
+  }
+
+  async runMessage(message: ResponseMessageItem): Promise<AgentRunResult> {
+    const iterator = this.streamMessage(message);
 
     while (true) {
       const next = await iterator.next();
@@ -107,11 +125,17 @@ export class AgentSession {
   }
 
   async *stream(prompt: string): AsyncGenerator<AgentEvent, AgentRunResult> {
-    this.currentPlan = undefined;
-    this.state.appendUserMessage(prompt);
+    return yield* this.streamMessage(createUserMessage(prompt));
+  }
+
+  async *streamMessage(message: ResponseMessageItem): AsyncGenerator<AgentEvent, AgentRunResult> {
+    this.currentPlan = clonePlan(this.pendingInitialPlan);
+    this.pendingInitialPlan = undefined;
+    this.state.appendUserInput(message);
 
     let compactionsUsed = 0;
     let finalText = '';
+    const toolTrace: AgentToolTraceEntry[] = [];
 
     for (let step = 0; step < this.maxSteps; step += 1) {
       const dynamicItems = getDynamicPromptItems(this.currentPlan);
@@ -155,6 +179,7 @@ export class AgentSession {
           plan: clonePlan(this.currentPlan),
           stepsUsed: step + 1,
           stopReason: 'completed',
+          toolTrace: structuredClone(toolTrace),
         } satisfies AgentRunResult;
 
         yield { kind: 'end', result };
@@ -166,6 +191,13 @@ export class AgentSession {
 
         const toolResult = yield* this.streamToolCall(toolCall);
         this.state.appendToolOutput(toolCall, toolResult.output ?? toolResult.content);
+        toolTrace.push({
+          callId: toolCall.id,
+          inputText: toolCall.inputText,
+          kind: toolCall.kind,
+          name: toolCall.name,
+          summary: toolResult.summary,
+        });
 
         yield { call: toolCall, kind: 'tool-result', result: toolResult };
 
@@ -173,7 +205,7 @@ export class AgentSession {
 
         if (plan) {
           this.currentPlan = plan;
-          yield { kind: 'plan-update', plan: clonePlan(plan) };
+          yield { kind: 'plan-update', plan: structuredClone(plan) };
         }
       }
     }
@@ -185,6 +217,7 @@ export class AgentSession {
       plan: clonePlan(this.currentPlan),
       stepsUsed: this.maxSteps,
       stopReason: 'max_steps',
+      toolTrace: structuredClone(toolTrace),
     } satisfies AgentRunResult;
 
     yield { kind: 'end', result };
@@ -198,6 +231,7 @@ export class AgentSession {
       input,
       instructions: this.instructions,
       model: this.model,
+      reasoningEffort: this.reasoningEffort,
       tools: this.toolDefinitions,
     });
 
@@ -217,6 +251,7 @@ export class AgentSession {
       callId: call.id,
       cwd: this.cwd,
       defaultTimeoutMs: this.commandTimeoutMs,
+      sessionSnapshot: this.getSessionSnapshot(),
       shell: this.shell,
       services: this.toolServices,
       workspaceRoot: this.cwd,
@@ -232,6 +267,13 @@ export class AgentSession {
       yield toAgentToolEvent(call, next.value);
     }
   }
+
+  private getSessionSnapshot(): AgentSessionSnapshot {
+    return {
+      conversationItems: this.state.getConversationItems(),
+      currentPlan: clonePlan(this.currentPlan),
+    };
+  }
 }
 
 async function* runToolCall(
@@ -241,7 +283,9 @@ async function* runToolCall(
     callId: string;
     cwd: string;
     defaultTimeoutMs: number;
+    sessionSnapshot?: AgentSessionSnapshot;
     shell: string;
+    services?: ToolServices;
     workspaceRoot: string;
   },
 ): AsyncGenerator<ToolEvent, ToolExecutionResult> {

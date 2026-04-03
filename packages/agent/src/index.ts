@@ -16,7 +16,9 @@ export type { PromptSectionContext } from './request-builder/types.ts';
 export type {
   AgentEvent,
   AgentRunResult,
+  AgentSessionSnapshot,
   AgentStopReason,
+  AgentToolTraceEntry,
   JsonSchema,
   ModelClient,
   ModelTurnEvent,

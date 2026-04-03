@@ -57,7 +57,8 @@ type VirtualFileEntry = Extract<VirtualEntry, { kind: 'file' }>;
 export function createApplyPatchTool(): Tool {
   return {
     definition: {
-      description: 'Edit files with a freeform patch.',
+      description:
+        'Edit files with a freeform patch. Use this for precise file creation, updates, moves, or deletions instead of shell-based file rewriting.',
       format: { definition: APPLY_PATCH_GRAMMAR, syntax: 'lark', type: 'grammar' },
       kind: 'custom',
       name: 'functions.apply_patch',

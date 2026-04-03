@@ -29,7 +29,7 @@ export function createShellTool(options: ShellToolOptions = {}): Tool {
   const tool: Tool = {
     definition: {
       description:
-        'Run a shell command in the workspace and capture stdout, stderr, and the exit code.',
+        'Run a shell command in the workspace and capture stdout, stderr, and the exit code. Prefer this for quick one-shot inspection or execution when no more specialized tool fits, and use functions.exec_command for persistent interactive sessions. If a task explicitly requires one multi_tool_use.parallel wrapper step for multiple shell inspections, do not split that work into separate shell calls.',
       kind: 'function',
       inputSchema: {
         additionalProperties: false,

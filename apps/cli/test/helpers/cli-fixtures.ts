@@ -10,11 +10,11 @@ export function makeSmokeSession(prompts: string[]) {
 
       if (prompt === 'inspect') {
         yield {
-          call: { id: 'call_1', inputText: '{"command":"pwd"}', name: 'shell' },
+          call: { id: 'call_1', inputText: '{"command":"pwd"}', kind: 'function', name: 'shell' },
           kind: 'tool-call',
         };
         yield {
-          call: { id: 'call_1', inputText: '{"command":"pwd"}', name: 'shell' },
+          call: { id: 'call_1', inputText: '{"command":"pwd"}', kind: 'function', name: 'shell' },
           kind: 'tool-result',
           result: makeToolResult(),
         };
@@ -25,6 +25,7 @@ export function makeSmokeSession(prompts: string[]) {
           call: {
             id: 'call_plan',
             inputText: '{"plan":[{"step":"Implement the change","status":"in_progress"}]}',
+            kind: 'function',
             name: 'update_plan',
           },
           kind: 'tool-call',
@@ -33,6 +34,7 @@ export function makeSmokeSession(prompts: string[]) {
           call: {
             id: 'call_plan',
             inputText: '{"plan":[{"step":"Implement the change","status":"in_progress"}]}',
+            kind: 'function',
             name: 'update_plan',
           },
           kind: 'tool-result',
@@ -60,6 +62,7 @@ export function makeSmokeSession(prompts: string[]) {
         inputItems: [],
         stepsUsed: 1,
         stopReason: 'completed',
+        toolTrace: [],
       } satisfies AgentRunResult;
 
       yield { kind: 'end', result };
@@ -83,7 +86,7 @@ export class MemoryStream extends PassThrough {
       return super.write(chunk, encoding);
     }
 
-    return super.write(chunk, encoding, callback);
+    return super.write(chunk, encoding ?? 'utf8', callback);
   }
 
   text(): string {
@@ -181,7 +184,14 @@ export function makeEvalReport(): EvalRunReport {
     ],
     objectivePassed: true,
     overallPassed: true,
+    runId: 'run-demo',
     startedAt: '2026-03-19T00:00:00.000Z',
-    status: { compactionsUsed: 0, stepsUsed: 2, stopReason: 'completed' },
+    status: {
+      compactionsUsed: 0,
+      stepsUsed: 2,
+      stopReason: 'completed',
+      toolTrace: [],
+      toolUsage: { callCounts: {}, usedTools: [] },
+    },
   };
 }

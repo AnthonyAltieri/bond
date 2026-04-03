@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "interactive-badge-cli",
+      "description": "Builds a run-scoped interactive Bun CLI while exercising the practical local eval tool surface and child-agent delegation over at least 10 agent steps.",
+      "prompt": "Use subagents for this task. Create an interactive notes CLI in `.outputs/tool-marathon-{{runId}}` using Bun and TypeScript with the entrypoint at `.outputs/tool-marathon-{{runId}}/main.ts`. The CLI must accept the commands `add <text>`, `list`, `badge`, and `exit`. `add <text>` appends the note and prints `ADDED=<count>`. `list` prints one line per note as `ITEM_<n>=<text>`. `badge` prints `BADGE=<badge_word>`, where `<badge_word>` is the exact uppercase word shown in `evals/assets/tool-marathon-badge.png`. `exit` prints `BYE` and exits cleanly. Start by inspecting the workspace and making a short plan. Then split two independent investigation tasks across parallel helper agents: one helper should confirm the output directory and entrypoint path for the CLI, and the other should confirm which asset under `evals/assets` contains the badge word. Do not do both of those investigations yourself before delegating them. Gather the helper-agent results back before moving on. Then inspect the badge image, implement the CLI, start it in an interactive session, send at least three batches of input to verify the session, and finish with one final non-interactive smoke test. Take at least 10 steps before your final answer. When finished, answer with exactly one line: EVAL_RESULT=ok",
+      "finalResponse": { "type": "equals", "value": "EVAL_RESULT=ok" },
+      "minSteps": 10,
+      "maxSteps": 24,
+      "requiredTools": [
+        "shell",
+        "update_plan",
+        "functions.spawn_agent",
+        "functions.wait_agent",
+        "functions.exec_command",
+        "functions.write_stdin",
+        "functions.apply_patch",
+        "functions.view_image"
+      ],
+      "toolUsageChecks": [
+        {
+          "type": "min_calls",
+          "name": "spawned two child agents",
+          "tool": "functions.spawn_agent",
+          "minCalls": 2
+        },
+        {
+          "type": "min_calls",
+          "name": "waited for child-agent results",
+          "tool": "functions.wait_agent",
+          "minCalls": 1
+        }
+      ],
+      "capturePaths": [".outputs/tool-marathon-{{runId}}/**/*"],
+      "objectiveChecks": [
+        {
+          "name": "interactive cli session",
+          "category": "test",
+          "command": "test -f .outputs/tool-marathon-{{runId}}/main.ts\noutput=\"$(bun .outputs/tool-marathon-{{runId}}/main.ts <<'EOF'\nadd polish tests\nadd count tools\nlist\nbadge\nexit\nEOF\n)\"\nprintf '%s' \"$output\"",
+          "stdoutIncludes": [
+            "ADDED=1",
+            "ADDED=2",
+            "ITEM_1=polish tests",
+            "ITEM_2=count tools",
+            "BADGE=ANCHOR",
+            "BYE"
+          ]
+        },
+        {
+          "name": "badge source wiring",
+          "category": "content",
+          "command": "grep -q \"ANCHOR\" .outputs/tool-marathon-{{runId}}/main.ts"
+        }
+      ],
+      "workingDirectoryMode": "repo"
+    }
+  ]
+}

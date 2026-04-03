@@ -16,6 +16,7 @@ import {
   type PromptSectionContext,
   type ResponseInputItem,
 } from '@bond/agent';
+import { createLocalToolset } from '@bond/tools';
 import { createPlanTool } from '@bond/tools/plan';
 import { createShellTool } from '@bond/tools/shell';
 
@@ -529,7 +530,170 @@ describe('buildPrompt', () => {
     }
 
     expect(result.value[1]).toEqual({
-      content: [{ text: expect.stringContaining('shell:'), type: 'input_text' }],
+      content: [
+        {
+          text: expect.stringContaining('Tool schemas are available in the API tool definitions'),
+          type: 'input_text',
+        },
+      ],
+      role: 'developer',
+      type: 'message',
+    });
+  });
+
+  test('includes delegation guidance when child-agent tools are available', () => {
+    const result = buildPrompt(
+      createPromptSectionContext({
+        cwd: process.cwd(),
+        now: new Date('2026-03-20T12:00:00.000Z'),
+        shell: 'zsh',
+        toolDefinitions: createLocalToolset().map((tool) => tool.definition),
+      }),
+    );
+
+    expect(isOk(result)).toBe(true);
+
+    if (!isOk(result)) {
+      throw result.error;
+    }
+
+    expect(result.value[1]).toEqual({
+      content: [{ text: expect.stringContaining('# Delegation Guidance'), type: 'input_text' }],
+      role: 'developer',
+      type: 'message',
+    });
+    expect(result.value[1]).toEqual({
+      content: [
+        { text: expect.stringContaining('# Tool Selection Heuristics'), type: 'input_text' },
+      ],
+      role: 'developer',
+      type: 'message',
+    });
+    expect(result.value[1]).toEqual({
+      content: [
+        {
+          text: expect.stringContaining('Use functions.spawn_agent when there is independent work'),
+          type: 'input_text',
+        },
+      ],
+      role: 'developer',
+      type: 'message',
+    });
+    expect(result.value[1]).toEqual({
+      content: [
+        {
+          text: expect.stringContaining(
+            'If the user asks to use subagents, helper agents, parallelize the task, delegate, split investigations, fan work out, or do research in parallel',
+          ),
+          type: 'input_text',
+        },
+      ],
+      role: 'developer',
+      type: 'message',
+    });
+    expect(result.value[1]).toEqual({
+      content: [
+        {
+          text: expect.stringContaining(
+            'Prefer the most specialized tool that directly matches the user request or artifact you need to inspect; use shell as a fallback rather than the default.',
+          ),
+          type: 'input_text',
+        },
+      ],
+      role: 'developer',
+      type: 'message',
+    });
+    expect(result.value[1]).toEqual({
+      content: [
+        {
+          text: expect.stringContaining(
+            'use functions.view_image instead of guessing from filenames or shell metadata',
+          ),
+          type: 'input_text',
+        },
+      ],
+      role: 'developer',
+      type: 'message',
+    });
+    expect(result.value[1]).toEqual({
+      content: [
+        {
+          text: expect.stringContaining(
+            'use functions.exec_command to start it instead of repeatedly launching one-shot shell commands',
+          ),
+          type: 'input_text',
+        },
+      ],
+      role: 'developer',
+      type: 'message',
+    });
+    expect(result.value[1]).toEqual({
+      content: [
+        {
+          text: expect.stringContaining(
+            'continue the same process with functions.write_stdin instead of restarting it',
+          ),
+          type: 'input_text',
+        },
+      ],
+      role: 'developer',
+      type: 'message',
+    });
+    expect(result.value[1]).toEqual({
+      content: [
+        {
+          text: expect.stringContaining(
+            'use functions.wait_agent to gather the results back when you are ready to integrate them',
+          ),
+          type: 'input_text',
+        },
+      ],
+      role: 'developer',
+      type: 'message',
+    });
+    expect(result.value[1]).toEqual({
+      content: [
+        {
+          text: expect.stringContaining(
+            'Do not use multi_tool_use.parallel to orchestrate child-agent lifecycle calls; call functions.spawn_agent and functions.wait_agent directly.',
+          ),
+          type: 'input_text',
+        },
+      ],
+      role: 'developer',
+      type: 'message',
+    });
+    expect(result.value[1]).toEqual({
+      content: [
+        {
+          text: expect.stringContaining(
+            'Use multi_tool_use.parallel for safe independent tool calls',
+          ),
+          type: 'input_text',
+        },
+      ],
+      role: 'developer',
+      type: 'message',
+    });
+    expect(result.value[1]).toEqual({
+      content: [
+        {
+          text: expect.stringContaining(
+            'call the wrapper directly instead of substituting equivalent direct tool calls',
+          ),
+          type: 'input_text',
+        },
+      ],
+      role: 'developer',
+      type: 'message',
+    });
+    expect(result.value[1]).toEqual({
+      content: [
+        {
+          text: expect.stringContaining('Payload shape example: {"tool_uses"'),
+          type: 'input_text',
+        },
+      ],
       role: 'developer',
       type: 'message',
     });
@@ -593,6 +757,42 @@ describe('buildSystemPrompt', () => {
       'When the task is non-trivial, use update_plan to keep a short current plan and work through it methodically instead of making disconnected edits.',
     );
     expect(prompt).toContain(
+      'When child-agent tools are available, delegate independent side tasks so you can keep the main thread focused on the critical path.',
+    );
+    expect(prompt).toContain(
+      'If the user asks to use subagents, helper agents, parallelize work, delegate, split investigations, fan out, or research in parallel, treat that as explicit permission to spawn child agents for independent slices and then gather their results back.',
+    );
+    expect(prompt).toContain(
+      'Prefer parallel child agents for non-blocking exploration, verification, or implementation slices with disjoint scope, and wait only when you are actually blocked on their result.',
+    );
+    expect(prompt).toContain(
+      'Prefer the most specialized tool whose semantics match the user intent or required artifact, and treat shell as a fallback when no more direct tool fits.',
+    );
+    expect(prompt).toContain(
+      'Choose the tool path that is most likely to finish the task with the fewest retries and least redundant probing, not the broadest generic tool.',
+    );
+    expect(prompt).toContain(
+      'When the task explicitly requires a named tool, call that exact tool instead of substituting a similar one.',
+    );
+    expect(prompt).toContain(
+      'If the task requires a wrapper tool such as multi_tool_use.parallel and gives an exact payload or step ordering, emit that wrapper call directly instead of decomposing it into equivalent lower-level calls.',
+    );
+    expect(prompt).toContain(
+      'Use child-agent lifecycle tools directly for delegation; do not wrap functions.spawn_agent or functions.wait_agent inside multi_tool_use.parallel.',
+    );
+    expect(prompt).toContain(
+      'If the task depends on what an image shows, inspect it with the image-viewing tool instead of inferring from filenames, paths, or shell output.',
+    );
+    expect(prompt).toContain(
+      'If the task implies an interactive or persistent process, use the persistent exec session tools instead of restarting one-shot shell commands.',
+    );
+    expect(prompt).toContain(
+      'If you need to make scoped file edits, prefer the patching tool over shell-based file rewriting.',
+    );
+    expect(prompt).toContain(
+      'If repository-local resources or templates are available through dedicated resource tools, prefer those direct reads over shell exploration.',
+    );
+    expect(prompt).toContain(
       'Treat implemented and verified as different states: verify any meaningful behavior change before you stop.',
     );
     expect(prompt).toContain(
@@ -650,12 +850,14 @@ function createPromptSectionContext(
 }
 
 function findCurrentPlanMessage(input: ResponseInputItem[]): string | undefined {
-  return input.find(
-    (item) =>
+  const message = input.find(
+    (item): item is Extract<ResponseInputItem, { type: 'message' }> =>
       item.type === 'message' &&
       item.role === 'user' &&
       item.content.some(
         (part) => part.type === 'input_text' && part.text.includes('<current_plan>'),
       ),
-  )?.content[0]?.text;
+  );
+
+  return message?.content[0]?.type === 'input_text' ? message.content[0].text : undefined;
 }

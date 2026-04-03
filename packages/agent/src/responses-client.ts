@@ -101,11 +101,13 @@ export class OpenAIResponsesClient implements ModelClient {
   }
 
   async *streamTurn(params: ModelTurnParams): AsyncGenerator<ModelTurnEvent, ModelTurnResult> {
+    const nameMap = createToolNameMap(params.tools);
     const response = await fetch(`${this.baseUrl}/responses`, {
       body: JSON.stringify({
-        input: params.input,
+        input: serializeInputItems(params.input, nameMap),
         instructions: params.instructions,
         model: params.model,
+        ...(params.reasoningEffort ? { reasoning: { effort: params.reasoningEffort } } : {}),
         stream: true,
         tools: [...params.tools]
           .sort((left, right) => left.name.localeCompare(right.name))
@@ -114,12 +116,12 @@ export class OpenAIResponsesClient implements ModelClient {
               ? {
                   description: tool.description,
                   format: tool.format,
-                  name: tool.name,
+                  name: nameMap.toApiName.get(tool.name) ?? tool.name,
                   type: 'custom',
                 }
               : {
                   description: tool.description,
-                  name: tool.name,
+                  name: nameMap.toApiName.get(tool.name) ?? tool.name,
                   parameters: tool.inputSchema,
                   strict: false,
                   type: 'function',
@@ -138,12 +140,13 @@ export class OpenAIResponsesClient implements ModelClient {
       throw new Error('OpenAI did not return a response body');
     }
 
-    return yield* collectStream(response.body);
+    return yield* collectStream(response.body, nameMap.toLocalName);
   }
 }
 
 async function* collectStream(
   stream: ReadableStream<Uint8Array>,
+  toolNameMap: ReadonlyMap<string, string>,
 ): AsyncGenerator<ModelTurnEvent, ModelTurnResult> {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
@@ -168,18 +171,26 @@ async function* collectStream(
 
       const parsed = JSON.parse(payload) as ResponseCompletedEvent | ResponseDeltaEvent;
 
-      if (parsed.type === 'response.output_text.delta' && parsed.delta) {
+      if (
+        parsed.type === 'response.output_text.delta' &&
+        'delta' in parsed &&
+        typeof parsed.delta === 'string'
+      ) {
         textParts.push(parsed.delta);
         yield { chunk: parsed.delta, kind: 'text-delta' };
         continue;
       }
 
-      if (parsed.type === 'response.reasoning_summary_text.delta' && parsed.delta) {
+      if (
+        parsed.type === 'response.reasoning_summary_text.delta' &&
+        'delta' in parsed &&
+        typeof parsed.delta === 'string'
+      ) {
         yield { chunk: parsed.delta, kind: 'reasoning-delta' };
         continue;
       }
 
-      if (parsed.type === 'response.completed') {
+      if (parsed.type === 'response.completed' && 'response' in parsed) {
         completed = parsed.response;
       }
     }
@@ -189,7 +200,7 @@ async function* collectStream(
     }
   }
 
-  const items = normalizeOutputItems(completed?.output);
+  const items = normalizeOutputItems(completed?.output, toolNameMap);
   const assistantText = readAssistantText(items) || textParts.join('');
 
   return {
@@ -217,12 +228,15 @@ async function formatOpenAIError(response: Response): Promise<string> {
   return `OpenAI request failed (${response.status}): ${bodyText}`;
 }
 
-function normalizeOutputItems(output: unknown): ResponseInputItem[] {
+function normalizeOutputItems(
+  output: unknown,
+  toolNameMap: ReadonlyMap<string, string>,
+): ResponseInputItem[] {
   if (!Array.isArray(output)) {
     return [];
   }
 
-  return output.flatMap((item) => parseOutputItem(item));
+  return output.flatMap((item) => parseOutputItem(item, toolNameMap));
 }
 
 function parseSseData(event: string): string {
@@ -269,20 +283,31 @@ function toAssistantMessage(text: string): ResponseMessageItem {
 }
 
 function toToolCalls(items: ResponseInputItem[]): ToolCall[] {
-  return items.flatMap((item) => {
+  const calls: ToolCall[] = [];
+
+  for (const item of items) {
     if (item.type === 'function_call') {
-      return [{ id: item.call_id, inputText: item.arguments, kind: 'function', name: item.name }];
+      calls.push({
+        id: item.call_id,
+        inputText: item.arguments,
+        kind: 'function',
+        name: item.name,
+      });
+      continue;
     }
 
     if (item.type === 'custom_tool_call') {
-      return [{ id: item.call_id, inputText: item.input, kind: 'custom', name: item.name }];
+      calls.push({ id: item.call_id, inputText: item.input, kind: 'custom', name: item.name });
     }
+  }
 
-    return [];
-  });
+  return calls;
 }
 
-function parseOutputItem(item: unknown): ResponseInputItem[] {
+function parseOutputItem(
+  item: unknown,
+  toolNameMap: ReadonlyMap<string, string>,
+): ResponseInputItem[] {
   const itemType = z.object({ type: z.string() }).safeParse(item);
 
   if (!itemType.success) {
@@ -296,11 +321,25 @@ function parseOutputItem(item: unknown): ResponseInputItem[] {
     }
     case 'function_call': {
       const parsed = ResponseFunctionCallItemSchema.safeParse(item);
-      return parsed.success ? [parsed.data satisfies ResponseFunctionCallItem] : [];
+      return parsed.success
+        ? [
+            {
+              ...parsed.data,
+              name: toolNameMap.get(parsed.data.name) ?? parsed.data.name,
+            } satisfies ResponseFunctionCallItem,
+          ]
+        : [];
     }
     case 'custom_tool_call': {
       const parsed = ResponseCustomToolCallItemSchema.safeParse(item);
-      return parsed.success ? [parsed.data satisfies ResponseCustomToolCallItem] : [];
+      return parsed.success
+        ? [
+            {
+              ...parsed.data,
+              name: toolNameMap.get(parsed.data.name) ?? parsed.data.name,
+            } satisfies ResponseCustomToolCallItem,
+          ]
+        : [];
     }
     case 'function_call_output': {
       const parsed = ResponseFunctionCallOutputItemSchema.safeParse(item);
@@ -317,4 +356,52 @@ function parseOutputItem(item: unknown): ResponseInputItem[] {
     default:
       return [];
   }
+}
+
+function serializeInputItems(
+  input: ResponseInputItem[],
+  nameMap: { toApiName: ReadonlyMap<string, string> },
+): ResponseInputItem[] {
+  return input.map((item) => {
+    if (item.type === 'function_call') {
+      return { ...item, name: nameMap.toApiName.get(item.name) ?? item.name };
+    }
+
+    if (item.type === 'custom_tool_call') {
+      return { ...item, name: nameMap.toApiName.get(item.name) ?? item.name };
+    }
+
+    return item;
+  });
+}
+
+function createToolNameMap(tools: ModelTurnParams['tools']): {
+  toApiName: Map<string, string>;
+  toLocalName: Map<string, string>;
+} {
+  const toApiName = new Map<string, string>();
+  const toLocalName = new Map<string, string>();
+
+  for (const tool of tools) {
+    const apiName = toApiToolName(tool.name);
+    const existing = toLocalName.get(apiName);
+
+    if (existing && existing !== tool.name) {
+      throw new Error(
+        `Tool names "${existing}" and "${tool.name}" collide after API name sanitization`,
+      );
+    }
+
+    toApiName.set(tool.name, apiName);
+    toLocalName.set(apiName, tool.name);
+  }
+
+  return { toApiName, toLocalName };
+}
+
+function toApiToolName(name: string): string {
+  return name.replaceAll(
+    /[^a-zA-Z0-9_-]/g,
+    (character) => `_u${character.codePointAt(0)?.toString(16).padStart(4, '0') ?? '0000'}_`,
+  );
 }

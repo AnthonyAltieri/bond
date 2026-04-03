@@ -11,7 +11,10 @@ afterEach(() => {
 describe('OpenAIResponsesClient', () => {
   test('streams text deltas and returns finalized assistant output', async () => {
     let requestBody = '';
-    globalThis.fetch = (async (_input, init) => {
+    globalThis.fetch = (async (
+      _input: Parameters<typeof fetch>[0],
+      init?: Parameters<typeof fetch>[1],
+    ) => {
       requestBody = String(init?.body ?? '');
 
       return new Response(
@@ -33,7 +36,7 @@ describe('OpenAIResponsesClient', () => {
           },
         ]),
       );
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
 
     const client = new OpenAIResponsesClient({ apiKey: 'test-key' });
     const iterator = client.streamTurn({
@@ -91,7 +94,7 @@ describe('OpenAIResponsesClient', () => {
             type: 'response.completed',
           },
         ]),
-      )) as typeof fetch;
+      )) as unknown as typeof fetch;
 
     const client = new OpenAIResponsesClient({ apiKey: 'test-key' });
     const iterator = client.streamTurn({
@@ -134,7 +137,10 @@ describe('OpenAIResponsesClient', () => {
 
   test('serializes custom tools and parses custom tool calls', async () => {
     let requestBody = '';
-    globalThis.fetch = (async (_input, init) => {
+    globalThis.fetch = (async (
+      _input: Parameters<typeof fetch>[0],
+      init?: Parameters<typeof fetch>[1],
+    ) => {
       requestBody = String(init?.body ?? '');
 
       return new Response(
@@ -161,7 +167,7 @@ describe('OpenAIResponsesClient', () => {
           },
         ]),
       );
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
 
     const client = new OpenAIResponsesClient({ apiKey: 'test-key' });
     const iterator = client.streamTurn({
@@ -187,7 +193,7 @@ describe('OpenAIResponsesClient', () => {
       {
         description: 'patch files',
         format: { definition: 'start: "x"', syntax: 'lark', type: 'grammar' },
-        name: 'functions.apply_patch',
+        name: 'functions_u002e_apply_patch',
         type: 'custom',
       },
     ]);
@@ -212,6 +218,145 @@ describe('OpenAIResponsesClient', () => {
         type: 'custom_tool_call_output',
       },
     ]);
+  });
+
+  test('sanitizes dotted tool names for the API and remaps them on the response', async () => {
+    let requestBody = '';
+    globalThis.fetch = (async (
+      _input: Parameters<typeof fetch>[0],
+      init?: Parameters<typeof fetch>[1],
+    ) => {
+      requestBody = String(init?.body ?? '');
+
+      return new Response(
+        toSseStream([
+          {
+            response: {
+              output: [
+                {
+                  arguments: '{"cmd":"pwd"}',
+                  call_id: 'call_exec',
+                  name: 'functions_u002e_exec_command',
+                  type: 'function_call',
+                },
+              ],
+            },
+            type: 'response.completed',
+          },
+        ]),
+      );
+    }) as unknown as typeof fetch;
+
+    const client = new OpenAIResponsesClient({ apiKey: 'test-key' });
+    const next = await client
+      .streamTurn({
+        input: [
+          {
+            arguments: '{"cmd":"ls"}',
+            call_id: 'previous_call',
+            name: 'functions.exec_command',
+            type: 'function_call',
+          },
+        ],
+        instructions: 'system prompt',
+        model: 'gpt-test',
+        tools: [
+          {
+            description: 'run a command',
+            inputSchema: { type: 'object' },
+            kind: 'function',
+            name: 'functions.exec_command',
+          },
+        ],
+      })
+      .next();
+
+    if (!next.done) {
+      throw new Error('expected a completed response without deltas');
+    }
+
+    const parsedBody = JSON.parse(requestBody) as {
+      input: Array<Record<string, unknown>>;
+      tools: Array<Record<string, unknown>>;
+    };
+
+    expect(parsedBody.tools).toEqual([
+      {
+        description: 'run a command',
+        name: 'functions_u002e_exec_command',
+        parameters: { type: 'object' },
+        strict: false,
+        type: 'function',
+      },
+    ]);
+    expect(parsedBody.input).toEqual([
+      {
+        arguments: '{"cmd":"ls"}',
+        call_id: 'previous_call',
+        name: 'functions_u002e_exec_command',
+        type: 'function_call',
+      },
+    ]);
+    expect(next.value.items).toEqual([
+      {
+        arguments: '{"cmd":"pwd"}',
+        call_id: 'call_exec',
+        name: 'functions.exec_command',
+        type: 'function_call',
+      },
+    ]);
+    expect(next.value.toolCalls).toEqual([
+      {
+        id: 'call_exec',
+        inputText: '{"cmd":"pwd"}',
+        kind: 'function',
+        name: 'functions.exec_command',
+      },
+    ]);
+  });
+
+  test('forwards reasoning effort to the Responses API when requested', async () => {
+    let requestBody = '';
+    globalThis.fetch = (async (
+      _input: Parameters<typeof fetch>[0],
+      init?: Parameters<typeof fetch>[1],
+    ) => {
+      requestBody = String(init?.body ?? '');
+
+      return new Response(
+        toSseStream([
+          {
+            response: {
+              output: [
+                {
+                  content: [{ text: 'ok', type: 'output_text' }],
+                  role: 'assistant',
+                  type: 'message',
+                },
+              ],
+            },
+            type: 'response.completed',
+          },
+        ]),
+      );
+    }) as unknown as typeof fetch;
+
+    const client = new OpenAIResponsesClient({ apiKey: 'test-key' });
+    const next = await client
+      .streamTurn({
+        input: [],
+        instructions: 'system prompt',
+        model: 'gpt-test',
+        reasoningEffort: 'high',
+        tools: [],
+      })
+      .next();
+
+    if (!next.done) {
+      throw new Error('expected a completed response without deltas');
+    }
+
+    expect(JSON.parse(requestBody).reasoning).toEqual({ effort: 'high' });
   });
 });
 

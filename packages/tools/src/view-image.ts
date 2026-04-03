@@ -12,10 +12,10 @@ export function createViewImageTool(): Tool {
   return {
     definition: {
       description:
-        "View a local image from the filesystem (only use if given a full filepath by the user, and the image isn't already attached to the thread context).",
+        'View a local image from the filesystem so you can inspect its visual contents directly. Use this when the task depends on what an image shows rather than its filename or metadata, and only when the user provided a full filepath or the image is already known locally.',
       inputSchema: {
         additionalProperties: false,
-        properties: { detail: { type: 'string' }, path: { type: 'string' } },
+        properties: { detail: { enum: ['original'], type: 'string' }, path: { type: 'string' } },
         required: ['path'],
         type: 'object',
       },
