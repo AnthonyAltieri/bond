@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "parallel-subagent-report",
+      "description": "Uses spawned child agents for parallel repo inspection, waits for their results, and writes a deterministic report artifact.",
+      "prompt": "Use subagents for this task. Create `.outputs/subagent-report-{{runId}}/report.md` summarizing the current child-agent prompting support in this repo. Follow this workflow: first use `update_plan`. Then spawn exactly two child agents in parallel with `functions.spawn_agent`. Child agent A should inspect `packages/agent/src/request-builder/system-prompt.ts` and determine whether the system prompt explicitly treats user requests such as `use subagents`, `parallelize work`, or `delegate` as permission to spawn child agents. Child agent B should inspect `packages/tools/src/agents.ts` and determine whether the `functions.spawn_agent` and `functions.wait_agent` tool descriptions describe the spawn-workers-and-gather-results-back workflow. Do not inspect both files yourself before spawning the child agents; let the child agents do that exploration. After spawning both agents, use `functions.wait_agent` to gather their results back. Then create `.outputs/subagent-report-{{runId}}/report.md` with exactly these four lines: `SYSTEM_PROMPT_CHECK=pass`, `SPAWN_TOOL_CHECK=pass`, `WAIT_TOOL_CHECK=pass`, `CHILD_AGENTS=2`. Use `functions.apply_patch` to create the file. Finish with exactly one line: EVAL_RESULT=subagents_ok",
+      "finalResponse": { "type": "equals", "value": "EVAL_RESULT=subagents_ok" },
+      "minSteps": 5,
+      "maxSteps": 14,
+      "requiredTools": [
+        "update_plan",
+        "functions.spawn_agent",
+        "functions.wait_agent",
+        "functions.apply_patch"
+      ],
+      "toolUsageChecks": [
+        {
+          "type": "min_calls",
+          "name": "spawned at least two child agents",
+          "tool": "functions.spawn_agent",
+          "minCalls": 2
+        },
+        {
+          "type": "min_calls",
+          "name": "waited for child results",
+          "tool": "functions.wait_agent",
+          "minCalls": 1
+        }
+      ],
+      "capturePaths": [".outputs/subagent-report-{{runId}}/**/*"],
+      "objectiveChecks": [
+        {
+          "name": "report artifact created",
+          "category": "content",
+          "command": "test -f .outputs/subagent-report-{{runId}}/report.md"
+        },
+        {
+          "name": "report artifact contents",
+          "category": "content",
+          "command": "cat .outputs/subagent-report-{{runId}}/report.md",
+          "stdoutIncludes": [
+            "SYSTEM_PROMPT_CHECK=pass",
+            "SPAWN_TOOL_CHECK=pass",
+            "WAIT_TOOL_CHECK=pass",
+            "CHILD_AGENTS=2"
+          ]
+        }
+      ],
+      "workingDirectoryMode": "repo"
+    }
+  ]
+}

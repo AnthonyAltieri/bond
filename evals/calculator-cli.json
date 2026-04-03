@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "calculator-repl",
+      "description": "Creates an interactive calculator CLI in a run-scoped output directory.",
+      "prompt": "Create an interactive calculator CLI in `.outputs/calculator-{{runId}}`. Use Bun and TypeScript with the entrypoint at `.outputs/calculator-{{runId}}/main.ts`. The program must read one line at a time from stdin, evaluate arithmetic expressions using `+`, `-`, `*`, `/`, and parentheses, print successful evaluations as `RESULT=<value>`, print invalid input as `ERROR=<message>`, continue running after invalid input, and exit cleanly when the user enters `exit`. Verify it by piping a sample session into `bun .outputs/calculator-{{runId}}/main.ts`. When finished, answer with exactly one line: EVAL_RESULT=ok",
+      "finalResponse": { "type": "equals", "value": "EVAL_RESULT=ok" },
+      "maxSteps": 12,
+      "capturePaths": [".outputs/calculator-{{runId}}/**/*"],
+      "objectiveChecks": [
+        {
+          "name": "calculator repl session",
+          "category": "test",
+          "command": "test -f .outputs/calculator-{{runId}}/main.ts\noutput=\"$(bun .outputs/calculator-{{runId}}/main.ts <<'EOF'\n1 + 2\nbad input\n10 / 4\nexit\nEOF\n)\"\nprintf '%s' \"$output\"",
+          "stdoutIncludes": ["RESULT=3", "ERROR=", "RESULT=2.5"]
+        }
+      ],
+      "workingDirectoryMode": "repo"
+    }
+  ]
+}
