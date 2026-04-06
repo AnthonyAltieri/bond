@@ -51,11 +51,8 @@ export {
   createSpawnAgentTool,
   createWaitAgentTool,
 } from './agents.ts';
-export {
-  createExecCommandTool,
-  createInMemoryExecSessionManager,
-  createWriteStdinTool,
-} from './exec.ts';
+export { createExecCommandTool, createWriteStdinTool } from './exec.ts';
+export { createInMemoryExecSessionManager } from './exec-manager.ts';
 export {
   createListMcpResourceTemplatesTool,
   createListMcpResourcesTool,

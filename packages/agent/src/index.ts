@@ -1,4 +1,4 @@
-export { AgentSession, type AgentSessionOptions } from './agent-session.ts';
+export { AgentSession, type AgentSessionOptions } from './session.ts';
 export { compactConversation } from './compactor.ts';
 export {
   ConversationState,

@@ -4,6 +4,8 @@ export {
   runEvalCase,
   runEvalManifest,
   writeEvalReport,
+} from './runner.ts';
+export {
   type EvalCase,
   type EvalCaseInput,
   type EvalFinalResponseMatcher,
@@ -16,4 +18,4 @@ export {
   type EvalToolUsageSummary,
   type RunEvalCaseOptions,
   type RunEvalManifestOptions,
-} from './eval-runner.ts';
+} from './types.ts';

@@ -1,7 +1,7 @@
 import { isErr, ok, type Result } from '@alt-stack/result';
 
-import { createAgentIdentityPrompt } from './agent-identity.ts';
-import { createAgentMemoryPrompt } from './agent-memory.ts';
+import { createAgentIdentityPrompt } from './identity.ts';
+import { createAgentMemoryPrompt } from './memory.ts';
 import { createAgentsMdPrompt } from './agents-md.ts';
 import { createConversationHistoryPrompt } from './conversation-history.ts';
 import { createExecutionContextPrompt } from './execution-context.ts';

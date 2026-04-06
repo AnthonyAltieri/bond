@@ -7,11 +7,8 @@ import {
   createWaitAgentTool,
 } from '../agents.ts';
 import { createApplyPatchTool } from '../apply-patch.ts';
-import {
-  createExecCommandTool,
-  createInMemoryExecSessionManager,
-  createWriteStdinTool,
-} from '../exec.ts';
+import { createExecCommandTool, createWriteStdinTool } from '../exec.ts';
+import { createInMemoryExecSessionManager } from '../exec-manager.ts';
 import {
   createListMcpResourceTemplatesTool,
   createListMcpResourcesTool,
