@@ -23,7 +23,7 @@ const baseContext = {
 describe('exec tools', () => {
   test('runs a command and returns Codex-style output metadata', async () => {
     const tool = createExecCommandTool(toolServices);
-    const result = await tool.execute('{"cmd":"printf hello","yield_time_ms":10}', baseContext);
+    const result = await tool.execute('{"cmd":"printf hello","yield_time_ms":50}', baseContext);
 
     expect(result.name).toBe('functions.exec_command');
     expect(result.content).toContain('"output": "hello"');

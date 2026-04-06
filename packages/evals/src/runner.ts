@@ -2,161 +2,31 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-import {
-  AgentSession,
-  type AgentToolTraceEntry,
-  type ModelClient,
-  type PlanSnapshot,
-  type ResponseInputItem,
-  type Tool,
-} from '@bond/agent';
+import { AgentSession } from '@bond/agent';
 import {
   ARCHITECTURE_CRITIC,
   CORRECTNESS_CRITIC,
   GOAL_CRITIC,
   SIMPLICITY_CRITIC,
-  type ChangedFileArtifact,
-  type JudgeEnsembleResult,
-  type ObjectiveCheckCategory,
-  objectiveCheckCategorySchema,
-  type JudgeProvider,
   runJudgeEnsemble,
 } from '@bond/judges';
-import type { ToolServices } from '@bond/tools';
-import { z } from 'zod';
+
+import type {
+  EvalCase,
+  EvalCaseInput,
+  EvalFinalResponseMatcher,
+  EvalManifest,
+  EvalManifestInput,
+  EvalObjectiveCheckResult,
+  EvalObjectiveCheckSpec,
+  EvalRunReport,
+  EvalToolUsageSummary,
+  RunEvalCaseOptions,
+  RunEvalManifestOptions,
+} from './types.ts';
+import { EvalCaseSchema, EvalManifestSchema } from './types.ts';
 
 const DEFAULT_TEMP_ROOT = '/tmp';
-
-const EvalFinalResponseMatcherSchema = z.object({
-  type: z.enum(['contains', 'equals']),
-  value: z.string().min(1),
-});
-
-const EvalObjectiveCheckSpecSchema = z.object({
-  category: objectiveCheckCategorySchema.default('other'),
-  command: z.string().min(1),
-  expectExitCode: z.number().int().nonnegative().default(0),
-  name: z.string().min(1),
-  stderrIncludes: z.array(z.string()).default([]),
-  stdoutIncludes: z.array(z.string()).default([]),
-});
-
-const EvalCaseSchema = z.object({
-  capturePaths: z.array(z.string().min(1)).default([]),
-  commandTimeoutMs: z.number().int().positive().optional(),
-  description: z.string().min(1),
-  finalResponse: EvalFinalResponseMatcherSchema.optional(),
-  id: z.string().min(1),
-  maxSteps: z.number().int().positive().optional(),
-  minSteps: z.number().int().positive().optional(),
-  objectiveChecks: z.array(EvalObjectiveCheckSpecSchema).default([]),
-  prompt: z.string().min(1),
-  requiredTools: z.array(z.string().min(1)).default([]),
-  toolUsageChecks: z
-    .array(
-      z.discriminatedUnion('type', [
-        z.object({
-          name: z.string().min(1),
-          tools: z.array(z.string().min(1)).min(1),
-          type: z.literal('all_of'),
-        }),
-        z.object({
-          name: z.string().min(1),
-          tools: z.array(z.string().min(1)).min(1),
-          type: z.literal('any_of'),
-        }),
-        z.object({
-          minCalls: z.number().int().positive(),
-          name: z.string().min(1),
-          tool: z.string().min(1),
-          type: z.literal('min_calls'),
-        }),
-      ]),
-    )
-    .default([]),
-  workingDirectoryMode: z.enum(['repo', 'temp-empty']).default('repo'),
-});
-
-const EvalManifestSchema = z.object({
-  cases: z.array(EvalCaseSchema).min(1),
-  version: z.literal(1),
-});
-
-export type EvalCase = z.infer<typeof EvalCaseSchema>;
-export type EvalCaseInput = z.input<typeof EvalCaseSchema>;
-export type EvalFinalResponseMatcher = z.infer<typeof EvalFinalResponseMatcherSchema>;
-export type EvalManifest = z.infer<typeof EvalManifestSchema>;
-export type EvalManifestInput = z.input<typeof EvalManifestSchema>;
-export type EvalObjectiveCheckSpec = z.infer<typeof EvalObjectiveCheckSpecSchema>;
-
-export interface EvalJudgeModels {
-  architecture: string;
-  correctness: string;
-  goal: string;
-  simplicity: string;
-}
-
-export interface EvalObjectiveCheckResult {
-  category: ObjectiveCheckCategory;
-  command: string;
-  details: string;
-  exitCode: number;
-  name: string;
-  passed: boolean;
-  stderr: string;
-  stdout: string;
-}
-
-export interface EvalRunReport {
-  capturedFiles: ChangedFileArtifact[];
-  case: {
-    description: string;
-    id: string;
-    prompt: string;
-    workingDirectory: string;
-    workingDirectoryMode: EvalCase['workingDirectoryMode'];
-  };
-  durationMs: number;
-  finalResponse: string;
-  judgePassed: boolean;
-  judges: JudgeEnsembleResult;
-  model: string;
-  objectiveChecks: EvalObjectiveCheckResult[];
-  objectivePassed: boolean;
-  overallPassed: boolean;
-  runId: string;
-  startedAt: string;
-  status: {
-    compactionsUsed: number;
-    plan?: PlanSnapshot;
-    stopReason: 'completed' | 'max_steps';
-    stepsUsed: number;
-    toolTrace: AgentToolTraceEntry[];
-    toolUsage: EvalToolUsageSummary;
-  };
-}
-
-export interface EvalToolUsageSummary {
-  callCounts: Record<string, number>;
-  usedTools: string[];
-}
-
-export interface RunEvalCaseOptions {
-  client: ModelClient;
-  commandTimeoutMs?: number;
-  judgeModels: EvalJudgeModels;
-  judgeProvider: JudgeProvider;
-  model: string;
-  repoRoot: string;
-  shell?: string;
-  tempRoot?: string;
-  toolServices?: Partial<ToolServices>;
-  tools: Tool[];
-}
-
-export interface RunEvalManifestOptions extends RunEvalCaseOptions {
-  caseIds?: string[];
-}
 
 export async function parseEvalManifest(source: string): Promise<EvalManifest> {
   return EvalManifestSchema.parse(JSON.parse(source) as unknown);
@@ -319,7 +189,7 @@ export function formatEvalReportSummary(report: EvalRunReport): string {
 export async function writeEvalReport(path: string, report: EvalRunReport): Promise<void> {
   const resolvedPath = resolve(path);
   await mkdir(dirname(resolvedPath), { recursive: true });
-  await writeFile(`${resolvedPath}`, JSON.stringify(report, null, 2));
+  await writeFile(resolvedPath, JSON.stringify(report, null, 2));
 }
 
 function buildExecutionSummary(
@@ -371,7 +241,7 @@ function renderTemplateString(
   });
 }
 
-async function captureArtifacts(cwd: string, patterns: string[]): Promise<ChangedFileArtifact[]> {
+async function captureArtifacts(cwd: string, patterns: string[]) {
   const matches = new Set<string>();
 
   for (const pattern of patterns) {
@@ -385,7 +255,7 @@ async function captureArtifacts(cwd: string, patterns: string[]): Promise<Change
     }
   }
 
-  const artifacts = await Promise.all(
+  return await Promise.all(
     [...matches]
       .sort((left, right) => left.localeCompare(right))
       .map(async (relativePath) => ({
@@ -393,8 +263,6 @@ async function captureArtifacts(cwd: string, patterns: string[]): Promise<Change
         path: relativePath,
       })),
   );
-
-  return artifacts;
 }
 
 async function createTempDir(tempRoot: string): Promise<string> {
@@ -483,8 +351,8 @@ function evaluateRequiredTools(
 }
 
 function summarizeToolUsage(
-  inputItems: ResponseInputItem[],
-  toolTrace: AgentToolTraceEntry[],
+  inputItems: unknown[],
+  toolTrace: Array<{ name: string }>,
 ): EvalToolUsageSummary {
   const callCounts =
     toolTrace.length > 0
@@ -493,11 +361,21 @@ function summarizeToolUsage(
           return counts;
         }, {})
       : inputItems.reduce<Record<string, number>>((counts, item) => {
-          if (item.type !== 'function_call' && item.type !== 'custom_tool_call') {
+          if (
+            !item ||
+            typeof item !== 'object' ||
+            (Reflect.get(item, 'type') !== 'function_call' &&
+              Reflect.get(item, 'type') !== 'custom_tool_call')
+          ) {
             return counts;
           }
 
-          counts[item.name] = (counts[item.name] ?? 0) + 1;
+          const name = Reflect.get(item, 'name');
+
+          if (typeof name === 'string' && name.length > 0) {
+            counts[name] = (counts[name] ?? 0) + 1;
+          }
+
           return counts;
         }, {});
   const usedTools = Object.keys(callCounts).sort((left, right) => left.localeCompare(right));

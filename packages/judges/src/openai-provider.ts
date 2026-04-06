@@ -1,6 +1,7 @@
-import type { JudgeProvider, JudgeProviderRequest } from './judge-runner.ts';
 import type { z } from 'zod';
 import { z as zod } from 'zod';
+
+import type { JudgeProvider, JudgeProviderRequest } from './runner.ts';
 
 interface OpenAIJudgeProviderOptions {
   apiKey: string;

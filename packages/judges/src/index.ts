@@ -3,21 +3,13 @@ export {
   type JudgeModelConfig,
   type JudgeProvider,
   type JudgeProviderRequest,
-} from './judge-runner.ts';
+} from './runner.ts';
 export {
-  aggregateJudgeResults,
-  ARCHITECTURE_CRITIC,
-  CORRECTNESS_CRITIC,
-  createJudgeInstructions,
-  DEFAULT_JUDGE_SPECS,
-  formatJudgeInput,
-  GOAL_CRITIC,
-  objectiveCheckCategorySchema,
-  judgeConfidenceSchema,
-  judgeIssueSchema,
-  judgeIssueSeveritySchema,
-  judgeResultSchema,
-  SIMPLICITY_CRITIC,
+  JudgeConfidenceSchema,
+  JudgeIssueSchema,
+  JudgeIssueSeveritySchema,
+  JudgeResultSchema,
+  ObjectiveCheckCategorySchema,
   type ChangedFileArtifact,
   type JudgeConfidence,
   type JudgeEnsembleResult,
@@ -29,5 +21,14 @@ export {
   type JudgeSpec,
   type ObjectiveCheckArtifact,
   type ObjectiveCheckCategory,
-} from './judges.ts';
-export { OpenAIJudgeProvider } from './openai-judge-provider.ts';
+} from './types.ts';
+export { aggregateJudgeResults } from './aggregate.ts';
+export { createJudgeInstructions, formatJudgeInput } from './format.ts';
+export {
+  ARCHITECTURE_CRITIC,
+  CORRECTNESS_CRITIC,
+  DEFAULT_JUDGE_SPECS,
+  GOAL_CRITIC,
+  SIMPLICITY_CRITIC,
+} from './specs.ts';
+export { OpenAIJudgeProvider } from './openai-provider.ts';

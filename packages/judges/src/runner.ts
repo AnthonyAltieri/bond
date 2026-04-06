@@ -1,14 +1,14 @@
+import type { z } from 'zod';
+
+import { aggregateJudgeResults } from './aggregate.ts';
+import { createJudgeInstructions, formatJudgeInput } from './format.ts';
 import {
-  aggregateJudgeResults,
-  createJudgeInstructions,
-  formatJudgeInput,
-  judgeResultSchema,
+  JudgeResultSchema,
   type JudgeEnsembleResult,
   type JudgeInput,
   type JudgeRunResult,
   type JudgeSpec,
-} from './judges.ts';
-import type { z } from 'zod';
+} from './types.ts';
 
 export interface JudgeModelConfig {
   model: string;
@@ -40,7 +40,7 @@ export async function runJudgeEnsemble(
         input: renderedInput,
         instructions: createJudgeInstructions(judge.spec),
         model: judge.model,
-        schema: judgeResultSchema,
+        schema: JudgeResultSchema,
       });
 
       return {

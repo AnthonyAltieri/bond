@@ -1,8 +1,4 @@
-import type {
-  WebResearchRequest,
-  WebResearchResult,
-  WebResearcher,
-} from './autoresearch-runner.ts';
+import type { WebResearchRequest, WebResearchResult, WebResearcher } from './types.ts';
 import { z } from 'zod';
 
 interface OpenAIWebResearcherOptions {

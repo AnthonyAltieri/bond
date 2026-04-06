@@ -1,6 +1,5 @@
+export { parseAutoresearchManifest, runAutoresearch } from './runner.ts';
 export {
-  parseAutoresearchManifest,
-  runAutoresearch,
   type AutoresearchBondEvalSource,
   type AutoresearchDependencies,
   type AutoresearchEvaluationSource,
@@ -17,5 +16,5 @@ export {
   type WebResearchRequest,
   type WebResearchResult,
   type WebResearcher,
-} from './autoresearch-runner.ts';
-export { OpenAIWebResearcher } from './openai-web-researcher.ts';
+} from './types.ts';
+export { OpenAIWebResearcher } from './openai-researcher.ts';
